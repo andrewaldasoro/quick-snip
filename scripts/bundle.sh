@@ -34,8 +34,16 @@ sed -e "s/\$(BUNDLE_ID)/$BUNDLE_ID/" \
     -e "s/\$(BUILD)/$BUILD/" \
     Support/Info.plist > "$APP/Contents/Info.plist"
 
+# Ad-hoc signatures default to a cdhash designated requirement, which changes on every
+# build and makes macOS forget the Screen Recording grant. Pin it to the bundle ID instead.
+REQUIREMENT_ARGS=()
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    REQUIREMENT_ARGS=(--requirements "=designated => identifier \"$BUNDLE_ID\"")
+fi
+
 codesign --force --deep --options runtime --timestamp=none \
     --entitlements Support/QuickSnip.entitlements \
+    "${REQUIREMENT_ARGS[@]}" \
     --sign "$SIGN_IDENTITY" "$APP"
 
 echo "Built $APP"
