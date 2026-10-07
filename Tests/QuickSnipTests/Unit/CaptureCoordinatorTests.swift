@@ -28,25 +28,25 @@ struct CaptureCoordinatorTests {
         #expect(onboarding.showCount == 0)
     }
 
-    @Test func captureWithPermissionStartsCapture() {
+    @Test func captureWithPermissionStartsCapture() async {
         let (coordinator, _, onboarding, captures) = makeCoordinator(granted: true)
-        coordinator.captureRequested()
+        await coordinator.captureRequested()
         #expect(captures() == 1)
         #expect(onboarding.showCount == 0)
     }
 
-    @Test func captureWithoutPermissionShowsOnboardingInstead() {
+    @Test func captureWithoutPermissionShowsOnboardingInstead() async {
         let (coordinator, _, onboarding, captures) = makeCoordinator(granted: false)
-        coordinator.captureRequested()
+        await coordinator.captureRequested()
         #expect(captures() == 0)
         #expect(onboarding.showCount == 1)
     }
 
-    @Test func captureRechecksPermissionEachTime() {
+    @Test func captureRechecksPermissionEachTime() async {
         let (coordinator, access, _, _) = makeCoordinator(granted: true)
         let before = access.preflightCount
-        coordinator.captureRequested()
-        coordinator.captureRequested()
+        await coordinator.captureRequested()
+        await coordinator.captureRequested()
         #expect(access.preflightCount == before + 2)
     }
 }

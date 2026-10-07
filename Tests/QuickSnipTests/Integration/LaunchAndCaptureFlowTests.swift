@@ -6,7 +6,7 @@ import Testing
 @MainActor
 @Suite("Launch and capture flow")
 struct LaunchAndCaptureFlowTests {
-    @Test func firstLaunchGrantThenCapture() {
+    @Test func firstLaunchGrantThenCapture() async {
         let access = FakeScreenCaptureAccess(granted: false, grantOnRequest: true)
         let opener = SpyURLOpener()
         let permission = ScreenRecordingPermission(access: access, urlOpener: opener)
@@ -25,12 +25,12 @@ struct LaunchAndCaptureFlowTests {
         #expect(permission.isGranted)
 
         // Hotkey → capture.
-        coordinator.captureRequested()
+        await coordinator.captureRequested()
         #expect(captures == 1)
         #expect(onboarding.showCount == 1)
     }
 
-    @Test func permissionRevokedWhileRunningRoutesBackToOnboarding() {
+    @Test func permissionRevokedWhileRunningRoutesBackToOnboarding() async {
         let access = FakeScreenCaptureAccess(granted: true)
         let permission = ScreenRecordingPermission(access: access, urlOpener: SpyURLOpener())
         let onboarding = SpyOnboarding()
@@ -38,11 +38,11 @@ struct LaunchAndCaptureFlowTests {
         let coordinator = CaptureCoordinator(permission: permission, onboarding: onboarding) { captures += 1 }
 
         coordinator.appDidLaunch()
-        coordinator.captureRequested()
+        await coordinator.captureRequested()
         #expect(captures == 1)
 
         access.granted = false
-        coordinator.captureRequested()
+        await coordinator.captureRequested()
 
         #expect(captures == 1)
         #expect(onboarding.showCount == 1)

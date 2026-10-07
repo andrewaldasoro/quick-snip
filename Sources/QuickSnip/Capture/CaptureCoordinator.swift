@@ -12,12 +12,12 @@ final class CaptureCoordinator {
     private let logger = Logger(subsystem: Log.subsystem, category: "capture")
     private let permission: ScreenRecordingPermission
     private let onboarding: any OnboardingPresenting
-    private let startCapture: @MainActor () -> Void
+    private let startCapture: @MainActor () async -> Void
 
     init(
         permission: ScreenRecordingPermission,
         onboarding: any OnboardingPresenting,
-        startCapture: @escaping @MainActor () -> Void
+        startCapture: @escaping @MainActor () async -> Void
     ) {
         self.permission = permission
         self.onboarding = onboarding
@@ -25,12 +25,13 @@ final class CaptureCoordinator {
     }
 
     func appDidLaunch() {
+        logger.notice("Launched; Screen Recording granted: \(self.permission.isGranted, privacy: .public)")
         if !permission.isGranted {
             onboarding.show()
         }
     }
 
-    func captureRequested() {
+    func captureRequested() async {
         permission.refresh()
         guard permission.isGranted else {
             logger.notice("Capture requested without Screen Recording permission")
@@ -38,6 +39,6 @@ final class CaptureCoordinator {
             return
         }
         logger.info("Capture requested")
-        startCapture()
+        await startCapture()
     }
 }
