@@ -17,7 +17,10 @@ final class OverlayWindowManager: OverlayPresenting {
         dismiss()
         panels = session.displays.map { makePanel(for: $0, session: session, onCommand: onCommand) }
         session.onChange = { [weak self] in
-            self?.panels.forEach { $0.contentView?.needsDisplay = true }
+            self?.overlayViews.forEach { $0.sessionDidChange() }
+        }
+        session.onRequestTextEntry = { [weak self] displayID, point in
+            self?.overlayViews.first { $0.display.displayID == displayID }?.beginTextEntry(at: point)
         }
 
         NSApp.activate()
@@ -27,6 +30,10 @@ final class OverlayWindowManager: OverlayPresenting {
         let keyPanel = panels.first { $0.frame.contains(mouse) } ?? panels.first
         keyPanel?.makeKey()
         keyPanel?.makeFirstResponder(keyPanel?.contentView)
+    }
+
+    var overlayViews: [SelectionOverlayView] {
+        panels.compactMap { $0.contentView as? SelectionOverlayView }
     }
 
     func dismiss() {

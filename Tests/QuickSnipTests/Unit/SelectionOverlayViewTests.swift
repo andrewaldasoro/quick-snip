@@ -95,3 +95,128 @@ struct SelectionOverlayViewTests {
         #expect(received.isEmpty)
     }
 }
+
+@MainActor
+@Suite(.serialized)
+struct SelectionOverlayViewEditingTests {
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 400, height: 300), scale: 1)
+
+    private func makeView() -> (SelectionOverlayView, CaptureSession) {
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        session.onChange = { view.sessionDidChange() }
+        session.onRequestTextEntry = { _, point in view.beginTextEntry(at: point) }
+        return (view, session)
+    }
+
+    @Test func toolbarAppearsBelowSelectionAfterSelecting() throws {
+        let (view, session) = makeView()
+        #expect(view.toolbar == nil)
+
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+
+        let toolbar = try #require(view.toolbar)
+        #expect(!toolbar.isHidden)
+        #expect(toolbar.frame.minY >= 150)
+        #expect(view.bounds.contains(toolbar.frame))
+    }
+
+    @Test func toolbarHidesWhileSelectionIsDragged() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+
+        session.mouseDown(on: 1, at: CGPoint(x: 250, y: 150))
+        session.mouseDragged(on: 1, to: CGPoint(x: 260, y: 160))
+        #expect(try #require(view.toolbar).isHidden)
+
+        session.mouseUp(on: 1, at: CGPoint(x: 260, y: 160))
+        #expect(try #require(view.toolbar).isHidden == false)
+    }
+
+    @Test func toolbarReflectsToolAndUndoState() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        session.toggleTool(.rectangle)
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 100, y: 100))
+
+        let toolbar = try #require(view.toolbar)
+        #expect(toolbar.toolButtons[.rectangle]?.state == .on)
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
+    }
+
+    @Test func toolbarButtonsDriveTheSession() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        try #require(view.toolbar).toolButtons[.arrow]?.performClick(nil)
+        #expect(session.tool == .arrow)
+    }
+
+    @Test func textEntryCommitsAnAnnotation() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        session.toggleTool(.text)
+        session.mouseDown(on: 1, at: CGPoint(x: 80, y: 90))
+
+        let field = try #require(view.textField)
+        #expect(field.frame.minX == 80 - SelectionOverlayView.textFieldInset)
+        field.stringValue = "Note"
+        view.commitTextEntry()
+
+        #expect(view.textField == nil)
+        #expect(field.superview == nil)
+        #expect(session.document.annotations.map(\.kind) == [.text("Note", origin: CGPoint(x: 80, y: 90))])
+    }
+
+    @Test func cancelledTextEntryAddsNothing() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        session.toggleTool(.text)
+        session.mouseDown(on: 1, at: CGPoint(x: 80, y: 90))
+
+        try #require(view.textField).stringValue = "Draft"
+        view.cancelTextEntry()
+
+        #expect(view.textField == nil)
+        #expect(session.document.annotations.isEmpty)
+    }
+
+    @Test func startingNewTextEntryCommitsThePrevious() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        view.beginTextEntry(at: CGPoint(x: 80, y: 90))
+        try #require(view.textField).stringValue = "One"
+        view.beginTextEntry(at: CGPoint(x: 80, y: 120))
+
+        #expect(session.document.annotations.count == 1)
+        #expect(view.textField != nil)
+    }
+
+    @Test func shortcutsGoToTheTextFieldWhileTyping() throws {
+        var received: [OverlayCommand] = []
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { received.append($0) }
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        view.beginTextEntry(at: CGPoint(x: 80, y: 90))
+
+        let copy = try #require(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
+            context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8
+        ))
+        _ = view.performKeyEquivalent(with: copy)
+        #expect(received.isEmpty)
+    }
+
+    @Test func annotationsAreDrawnOnTheOverlay() throws {
+        let (view, session) = makeView()
+        TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
+        session.toggleTool(.rectangle)
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 100, y: 70), to: CGPoint(x: 160, y: 130))
+        view.toolbar?.isHidden = true
+
+        let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: rep)
+        let image = try #require(rep.cgImage)
+        let scale = image.width / 400
+        #expect(TestImages.pixel(image, x: 100 * scale, y: 100 * scale).isClose(to: .red, tolerance: 60))
+    }
+}

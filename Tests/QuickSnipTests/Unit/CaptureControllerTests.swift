@@ -143,3 +143,54 @@ struct CaptureControllerTests {
         #expect(h.pasteboard.written.count == 1)
     }
 }
+
+@MainActor
+struct CaptureControllerEditingTests {
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), scale: 2)
+
+    private func startedController() async throws -> (CaptureController, CaptureSession) {
+        let controller = CaptureController(
+            capturer: FakeDisplayCapturing(displays: [display]),
+            presenter: SpyOverlayPresenter(),
+            pasteboard: SpyPasteboard(),
+            saver: ScreenshotSaver(directory: TestImages.temporaryDirectory())
+        )
+        await controller.start()
+        let session = try #require(controller.session)
+        TestSessions.select(session, on: 1, CGRect(x: 10, y: 10, width: 60, height: 50))
+        session.toggleTool(.rectangle)
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 40, y: 40))
+        return (controller, session)
+    }
+
+    @Test func undoAndRedoCommands() async throws {
+        let (controller, session) = try await startedController()
+        #expect(controller.handle(.undo) == .edited)
+        #expect(session.document.annotations.isEmpty)
+        #expect(controller.handle(.redo) == .edited)
+        #expect(session.document.annotations.count == 1)
+    }
+
+    @Test func deleteCommandNeedsASelectedAnnotation() async throws {
+        let (controller, session) = try await startedController()
+        #expect(controller.handle(.deleteAnnotation) == .ignored)
+
+        session.toggleTool(.rectangle)
+        session.mouseDown(on: 1, at: CGPoint(x: 20, y: 30))
+        session.mouseUp(on: 1, at: CGPoint(x: 20, y: 30))
+        #expect(controller.handle(.deleteAnnotation) == .edited)
+        #expect(session.document.annotations.isEmpty)
+    }
+
+    @Test func editingCommandsWithoutSessionAreIgnored() {
+        let controller = CaptureController(
+            capturer: FakeDisplayCapturing(displays: []),
+            presenter: SpyOverlayPresenter(),
+            pasteboard: SpyPasteboard(),
+            saver: ScreenshotSaver(directory: TestImages.temporaryDirectory())
+        )
+        #expect(controller.handle(.undo) == .ignored)
+        #expect(controller.handle(.redo) == .ignored)
+        #expect(controller.handle(.deleteAnnotation) == .ignored)
+    }
+}

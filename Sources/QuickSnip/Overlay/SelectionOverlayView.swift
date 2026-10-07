@@ -1,16 +1,23 @@
 import AppKit
 
-/// Full-screen view for one display: frozen image, dimming outside the selection,
-/// border, handles, and the pixel size label. Flipped, so local points match `CaptureSession`.
-final class SelectionOverlayView: NSView {
+/// Full-screen view for one display: frozen image, dimming outside the selection, annotations,
+/// border, handles, size label, the annotation toolbar, and inline text entry.
+/// Flipped, so local points match `CaptureSession`.
+final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
     static let borderColor = NSColor.white
     static let handleSize: CGFloat = 7
+    /// Horizontal padding NSTextField adds before its text (line fragment padding).
+    static let textFieldInset: CGFloat = 2
 
     let display: CapturedDisplay
     private let session: CaptureSession
     private let onCommand: @MainActor (OverlayCommand) -> Void
     private let frozenImage: NSImage
+
+    private(set) var toolbar: AnnotationToolbar?
+    private(set) var textField: NSTextField?
+    private var textOrigin: CGPoint = .zero
 
     init(display: CapturedDisplay, session: CaptureSession, onCommand: @escaping @MainActor (OverlayCommand) -> Void) {
         self.display = display
@@ -31,6 +38,58 @@ final class SelectionOverlayView: NSView {
 
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .crosshair)
+    }
+
+    private var isActiveDisplay: Bool { session.activeDisplayID == display.displayID }
+
+    // MARK: Session updates
+
+    /// Redraws and shows, hides, or repositions the toolbar.
+    func sessionDidChange() {
+        needsDisplay = true
+
+        guard isActiveDisplay, let selection = session.selection(on: display.displayID), !session.isEditingSelection else {
+            toolbar?.isHidden = true
+            return
+        }
+        let toolbar = self.toolbar ?? makeToolbar()
+        toolbar.update(
+            tool: session.tool,
+            style: session.style,
+            canUndo: session.document.canUndo,
+            canRedo: session.document.canRedo
+        )
+        toolbar.frame = ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds)
+        toolbar.isHidden = false
+    }
+
+    private func makeToolbar() -> AnnotationToolbar {
+        let toolbar = AnnotationToolbar(actions: .init(
+            selectTool: { [weak self] tool in
+                self?.session.toggleTool(tool)
+                self?.restoreFocus()
+            },
+            selectColor: { [weak self] color in
+                self?.session.setColor(color)
+                self?.restoreFocus()
+            },
+            selectWidth: { [weak self] width in
+                self?.session.setWidth(width)
+                self?.restoreFocus()
+            },
+            command: { [weak self] command in
+                self?.onCommand(command)
+                self?.restoreFocus()
+            }
+        ))
+        addSubview(toolbar)
+        self.toolbar = toolbar
+        return toolbar
+    }
+
+    /// Keeps keyboard shortcuts working after clicking a toolbar control.
+    private func restoreFocus() {
+        if textField == nil { window?.makeFirstResponder(self) }
     }
 
     // MARK: Drawing
@@ -56,9 +115,28 @@ final class SelectionOverlayView: NSView {
         dim.fill()
 
         guard let selection, !selection.isEmpty else { return }
+        if isActiveDisplay {
+            drawAnnotations(clippedTo: selection)
+        }
         drawBorder(selection)
         drawHandles(selection)
         drawSizeLabel(selection)
+    }
+
+    private func drawAnnotations(clippedTo selection: CGRect) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        context.saveGState()
+        context.clip(to: selection)
+        AnnotationRenderer.draw(session.visibleAnnotations, in: context, display: display, cache: session.pixelateCache)
+        context.restoreGState()
+
+        if let selected = session.selectedAnnotation {
+            let outline = NSBezierPath(rect: selected.bounds.insetBy(dx: -4, dy: -4))
+            outline.lineWidth = 1
+            outline.setLineDash([4, 3], count: 2, phase: 0)
+            NSColor.white.setStroke()
+            outline.stroke()
+        }
     }
 
     private func drawBorder(_ selection: CGRect) {
@@ -101,9 +179,83 @@ final class SelectionOverlayView: NSView {
         text.draw(at: CGPoint(x: origin.x + padding.width, y: origin.y + padding.height))
     }
 
+    // MARK: Text entry
+
+    func beginTextEntry(at point: CGPoint) {
+        commitTextEntry()
+
+        let font = Annotation.font(size: session.style.width.fontSize)
+        let field = NSTextField(string: "")
+        field.isBordered = false
+        field.isBezeled = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = font
+        field.textColor = session.style.color.nsColor
+        field.delegate = self
+        field.target = self
+        field.action = #selector(textFieldAction(_:))
+        field.cell?.isScrollable = true
+        field.cell?.wraps = false
+        field.frame = CGRect(
+            x: point.x - Self.textFieldInset,
+            y: point.y,
+            width: 40,
+            height: ceil(font.ascender - font.descender + font.leading) + 2
+        )
+        field.setAccessibilityLabel("Annotation text")
+
+        addSubview(field)
+        textField = field
+        textOrigin = point
+        window?.makeFirstResponder(field)
+    }
+
+    func commitTextEntry() {
+        guard let field = textField else { return }
+        textField = nil
+        let text = field.stringValue
+        field.removeFromSuperview()
+        window?.makeFirstResponder(self)
+        session.addText(text, at: textOrigin, on: display.displayID)
+    }
+
+    func cancelTextEntry() {
+        guard let field = textField else { return }
+        textField = nil
+        field.removeFromSuperview()
+        window?.makeFirstResponder(self)
+    }
+
+    @objc private func textFieldAction(_ sender: NSTextField) {
+        commitTextEntry()
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        guard let field = textField else { return }
+        let width = (field.attributedStringValue.size().width + Self.textFieldInset * 2 + 8).rounded(.up)
+        field.setFrameSize(NSSize(width: max(40, width), height: field.frame.height))
+    }
+
+    func controlTextDidEndEditing(_ notification: Notification) {
+        commitTextEntry()
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            cancelTextEntry()
+            return true
+        }
+        return false
+    }
+
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        if textField != nil {
+            commitTextEntry()
+            return
+        }
         session.mouseDown(on: display.displayID, at: localPoint(of: event))
     }
 
@@ -130,6 +282,8 @@ final class SelectionOverlayView: NSView {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // While typing, ⌘C/⌘Z etc. belong to the text field.
+        guard textField == nil else { return super.performKeyEquivalent(with: event) }
         if let command = OverlayKeyMap.command(for: event) {
             onCommand(command)
             return true

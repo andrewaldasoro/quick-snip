@@ -5,6 +5,9 @@ enum OverlayCommand: Equatable, Sendable {
     case copy
     case save
     case cancel
+    case undo
+    case redo
+    case deleteAnnotation
 }
 
 @MainActor
@@ -22,6 +25,8 @@ final class CaptureController {
         case cancelled
         case noSelection
         case failed
+        case edited
+        case ignored
     }
 
     private let logger = Logger(subsystem: Log.subsystem, category: "capture")
@@ -92,11 +97,24 @@ final class CaptureController {
                 logger.error("Save failed: \(error.localizedDescription, privacy: .public)")
                 return .failed
             }
+
+        case .undo:
+            guard let session else { return .ignored }
+            session.undo()
+            return .edited
+
+        case .redo:
+            guard let session else { return .ignored }
+            session.redo()
+            return .edited
+
+        case .deleteAnnotation:
+            return session?.deleteSelectedAnnotation() == true ? .edited : .ignored
         }
     }
 
     private func encodedSelection() -> Data? {
-        session?.croppedImage().flatMap(PNGEncoder.encode)
+        session?.renderedImage().flatMap(PNGEncoder.encode)
     }
 
     private func finish() {

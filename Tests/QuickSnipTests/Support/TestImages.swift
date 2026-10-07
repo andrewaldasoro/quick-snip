@@ -69,3 +69,31 @@ enum TestImages {
             .appendingPathComponent("QuickSnipTests-\(UUID().uuidString)", isDirectory: true)
     }
 }
+
+extension RGBA {
+    /// Roughly the annotation color (antialiasing/colour management tolerant).
+    func isClose(to color: AnnotationColor, tolerance: Int = 40) -> Bool {
+        let c = color.components
+        let expected = [c.red, c.green, c.blue].map { Int(($0 * 255).rounded()) }
+        return zip([Int(r), Int(g), Int(b)], expected).allSatisfy { abs($0 - $1) <= tolerance }
+    }
+}
+
+enum TestSessions {
+    /// Selects `rect` on `display` by dragging.
+    @MainActor
+    static func select(_ session: CaptureSession, on display: CGDirectDisplayID, _ rect: CGRect) {
+        session.mouseDown(on: display, at: rect.origin)
+        session.mouseDragged(on: display, to: CGPoint(x: rect.maxX, y: rect.maxY))
+        session.mouseUp(on: display, at: CGPoint(x: rect.maxX, y: rect.maxY))
+    }
+
+    /// A drag with the current tool (or a move without one).
+    @MainActor
+    static func drag(_ session: CaptureSession, on display: CGDirectDisplayID, from start: CGPoint, through points: [CGPoint] = [], to end: CGPoint) {
+        session.mouseDown(on: display, at: start)
+        for point in points { session.mouseDragged(on: display, to: point) }
+        session.mouseDragged(on: display, to: end)
+        session.mouseUp(on: display, at: end)
+    }
+}

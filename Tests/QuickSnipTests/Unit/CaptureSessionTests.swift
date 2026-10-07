@@ -17,7 +17,7 @@ struct CaptureSessionTests {
         let session = CaptureSession(displays: [retina, external])
         #expect(!session.hasSelection)
         #expect(session.activeDisplayID == nil)
-        #expect(session.croppedImage() == nil)
+        #expect(session.renderedImage() == nil)
     }
 
     @Test func selectingOnADisplayMakesItActive() {
@@ -68,10 +68,10 @@ struct CaptureSessionTests {
         #expect(session.selectionPixelSize(on: 2) == CGSize(width: 20, height: 15))
     }
 
-    @Test func croppedImageComesFromActiveDisplay() throws {
+    @Test func renderedImageComesFromActiveDisplay() throws {
         let session = CaptureSession(displays: [retina, external])
         select(session, on: 2, CGRect(x: 7, y: 9, width: 20, height: 15))
-        let image = try #require(session.croppedImage())
+        let image = try #require(session.renderedImage())
         #expect(image.width == 20)
         #expect(TestImages.pixel(image, x: 0, y: 0) == RGBA(r: 7, g: 9, b: 0, a: 255))
     }

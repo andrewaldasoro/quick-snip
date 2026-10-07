@@ -58,6 +58,8 @@ final class FakeDisplayCapturing: DisplayCapturing {
 @MainActor
 final class SpyOverlayPresenter: OverlayPresenting {
     private(set) var presentedSession: CaptureSession?
+    /// Most recently presented session, kept after dismissal for inspection.
+    private(set) var lastSession: CaptureSession?
     private(set) var presentCount = 0
     private(set) var dismissCount = 0
     private var onCommand: (@MainActor (OverlayCommand) -> Void)?
@@ -67,6 +69,7 @@ final class SpyOverlayPresenter: OverlayPresenting {
     func present(_ session: CaptureSession, onCommand: @escaping @MainActor (OverlayCommand) -> Void) {
         presentCount += 1
         presentedSession = session
+        lastSession = session
         self.onCommand = onCommand
     }
 

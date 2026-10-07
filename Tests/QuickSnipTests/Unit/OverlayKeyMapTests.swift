@@ -56,3 +56,27 @@ struct OverlayKeyMapTests {
         #expect(OverlayKeyMap.command(for: event) == nil)
     }
 }
+
+struct OverlayKeyMapEditingTests {
+    private func command(_ keyCode: UInt16, _ modifiers: NSEvent.ModifierFlags = [], _ chars: String? = nil) -> OverlayCommand? {
+        OverlayKeyMap.command(keyCode: keyCode, modifiers: modifiers, charactersIgnoringModifiers: chars)
+    }
+
+    @Test func commandZUndoes() {
+        #expect(command(6, .command, "z") == .undo)
+    }
+
+    @Test func commandShiftZRedoes() {
+        // charactersIgnoringModifiers keeps Shift, so it arrives as "Z".
+        #expect(command(6, [.command, .shift], "Z") == .redo)
+    }
+
+    @Test func deleteKeysRemoveSelectedAnnotation() {
+        #expect(command(OverlayKeyMap.deleteKey) == .deleteAnnotation)
+        #expect(command(OverlayKeyMap.forwardDeleteKey, .function) == .deleteAnnotation)
+    }
+
+    @Test func modifiedDeleteDoesNothing() {
+        #expect(command(OverlayKeyMap.deleteKey, .command) == nil)
+    }
+}
