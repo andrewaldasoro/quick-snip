@@ -1,0 +1,27 @@
+# All version updates, across every ecosystem, arrive as one weekly pull request.
+# Reviewer comes from CODEOWNERS; dependabot-auto-merge.yml merges it when CI passes
+# unless it contains a major update.
+version: 2
+
+multi-ecosystem-groups:
+  all:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies"]
+    assignees: ["andrewaldasoro"]
+
+updates:
+  - package-ecosystem: "swift"
+    directory: "/"
+    patterns: ["*"]
+    multi-ecosystem-group: "all"
+    commit-message:
+      prefix: "⬆️ Upgrade >"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    patterns: ["*"]
+    multi-ecosystem-group: "all"
+    commit-message:
+      prefix: "⬆️ Upgrade >"
