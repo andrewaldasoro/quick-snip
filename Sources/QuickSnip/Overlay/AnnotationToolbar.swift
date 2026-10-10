@@ -1,9 +1,12 @@
 import AppKit
 
-/// Floating toolbar anchored to the selection: tools, colors, stroke width, undo/redo,
-/// and cancel/save/copy. Colors and widths are inline segments: pop-up menus would open
-/// below the overlay's window level.
-final class AnnotationToolbar: NSVisualEffectView {
+/// Floating toolbar anchored to the selection, styled like a built-in macOS toolbar:
+/// a glass panel, borderless glyph buttons, round color swatches, and one prominent
+/// primary action (Copy).
+///
+/// Top row: cancel | tools | undo, redo | save, Copy. Bottom row: colors | stroke width.
+/// Every choice is an inline button: pop-up menus would open below the overlay's level.
+final class AnnotationToolbar: NSView {
     struct Actions {
         var selectTool: @MainActor (AnnotationTool) -> Void
         var selectColor: @MainActor (AnnotationColor) -> Void
@@ -12,36 +15,54 @@ final class AnnotationToolbar: NSVisualEffectView {
     }
 
     static let commands: [OverlayCommand] = [.undo, .redo, .cancel, .save, .copy]
-    static let buttonWidth: CGFloat = 28
+    static let buttonSize = NSSize(width: 28, height: 28)
+    static let swatchSize: CGFloat = 22
+    static let cornerRadius: CGFloat = 14
+    static let insets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
 
     private let actions: Actions
     private(set) var toolButtons: [AnnotationTool: NSButton] = [:]
     private(set) var commandButtons: [OverlayCommand: NSButton] = [:]
-    let colorControl = NSSegmentedControl()
-    let widthControl = NSSegmentedControl()
+    private(set) var colorButtons: [AnnotationColor: NSButton] = [:]
+    private(set) var widthButtons: [StrokeWidth: NSButton] = [:]
 
     init(actions: Actions) {
         self.actions = actions
         super.init(frame: .zero)
-        material = .hudWindow
-        blendingMode = .withinWindow
-        state = .active
-        wantsLayer = true
-        layer?.cornerRadius = 8
-        layer?.masksToBounds = true
 
-        let stack = NSStackView(views: [row(makeToolAndCommandItems()), row(makeStyleItems())])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 4
-        stack.edgeInsets = NSEdgeInsets(top: 5, left: 6, bottom: 5, right: 6)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        let rows = NSStackView(views: [makeMainRow(), makeStyleRow()])
+        rows.orientation = .vertical
+        rows.alignment = .leading
+        rows.spacing = 4
+        rows.translatesAutoresizingMaskIntoConstraints = false
+
+        // Padding as required constraints: a `.leading` stack's own edgeInsets don't hold
+        // on the trailing side, which left Copy touching the panel edge.
+        let content = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.setAccessibilityElement(true)
+        content.setAccessibilityRole(.toolbar)
+        content.setAccessibilityLabel("Screenshot tools")
+        content.addSubview(rows)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            rows.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: Self.insets.left),
+            rows.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -Self.insets.right),
+            rows.topAnchor.constraint(equalTo: content.topAnchor, constant: Self.insets.top),
+            rows.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -Self.insets.bottom),
+        ])
+
+        let background = Self.makeBackground(content: content)
+        background.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(background)
+        NSLayoutConstraint.activate([
+            background.leadingAnchor.constraint(equalTo: leadingAnchor),
+            background.trailingAnchor.constraint(equalTo: trailingAnchor),
+            background.topAnchor.constraint(equalTo: topAnchor),
+            background.bottomAnchor.constraint(equalTo: bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            content.topAnchor.constraint(equalTo: background.topAnchor),
+            content.bottomAnchor.constraint(equalTo: background.bottomAnchor),
         ])
         setFrameSize(fittingSize)
     }
@@ -51,101 +72,116 @@ final class AnnotationToolbar: NSVisualEffectView {
         fatalError("init(coder:) is not supported")
     }
 
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .arrow)
-    }
-
     func update(tool: AnnotationTool?, style: AnnotationStyle, canUndo: Bool, canRedo: Bool) {
         for (candidate, button) in toolButtons {
             button.state = candidate == tool ? .on : .off
         }
-        colorControl.selectedSegment = AnnotationColor.allCases.firstIndex(of: style.color) ?? 0
-        widthControl.selectedSegment = StrokeWidth.allCases.firstIndex(of: style.width) ?? 0
+        for (color, button) in colorButtons {
+            button.state = color == style.color ? .on : .off
+        }
+        for (width, button) in widthButtons {
+            button.state = width == style.width ? .on : .off
+        }
         commandButtons[.undo]?.isEnabled = canUndo
         commandButtons[.redo]?.isEnabled = canRedo
     }
 
     // MARK: Building
 
-    private func row(_ views: [NSView]) -> NSStackView {
-        let row = NSStackView(views: views)
-        row.orientation = .horizontal
-        row.spacing = 2
+    /// Liquid Glass on macOS 26+, the HUD-style vibrancy material before that.
+    private static func makeBackground(content: NSView) -> NSView {
+        if #available(macOS 26, *) {
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = cornerRadius
+            glass.contentView = content
+            return glass
+        }
+        let effect = NSVisualEffectView()
+        effect.material = .popover
+        effect.blendingMode = .withinWindow
+        effect.state = .active
+        effect.maskImage = roundedMask(radius: cornerRadius)
+        effect.addSubview(content)
+        return effect
+    }
+
+    private func makeMainRow() -> NSStackView {
+        let cancel = makeCommandButton(.cancel)
+
+        let tools = AnnotationTool.allCases.enumerated().map { index, tool in
+            let button = ToolbarButton(symbol: Self.symbol(for: tool), label: Self.label(for: tool), toggles: true)
+            button.target = self
+            button.action = #selector(toolClicked(_:))
+            button.tag = index
+            toolButtons[tool] = button
+            return button as NSView
+        }
+
+        let history = [makeCommandButton(.undo), makeCommandButton(.redo)]
+        let output = [makeCommandButton(.save), makeCommandButton(.copy)]
+
+        return row(groups: [[cancel], tools, history, output])
+    }
+
+    private func makeStyleRow() -> NSStackView {
+        let colors = AnnotationColor.allCases.enumerated().map { index, color in
+            let button = ColorSwatchButton(color: color, label: Self.label(for: color, index: index))
+            button.target = self
+            button.action = #selector(colorClicked(_:))
+            button.tag = index
+            colorButtons[color] = button
+            return button as NSView
+        }
+
+        let widths = StrokeWidth.allCases.enumerated().map { index, width in
+            let button = ToolbarButton(image: Self.widthImage(for: width), label: "\(width.rawValue.capitalized) stroke", toggles: true)
+            button.target = self
+            button.action = #selector(widthClicked(_:))
+            button.tag = index
+            widthButtons[width] = button
+            return button as NSView
+        }
+
+        // Line the swatches up under the tools, past the cancel button.
+        let row = row(groups: [colors, widths])
+        row.edgeInsets.left = Self.buttonSize.width + Self.groupSpacing * 2 + ToolbarDivider.width
         return row
     }
 
-    /// Top row: tools, then undo/redo, then cancel/save/copy.
-    private func makeToolAndCommandItems() -> [NSView] {
-        var items: [NSView] = []
-
-        for (index, tool) in AnnotationTool.allCases.enumerated() {
-            let button = makeButton(symbol: Self.symbol(for: tool), label: Self.label(for: tool), action: #selector(toolClicked(_:)))
-            button.setButtonType(.pushOnPushOff)
-            button.tag = index
-            toolButtons[tool] = button
-            items.append(button)
+    private func makeCommandButton(_ command: OverlayCommand) -> NSButton {
+        let button: NSButton
+        if command == .copy {
+            button = PrimaryToolbarButton(title: "Copy", symbol: Self.symbol(for: command), label: Self.label(for: command))
+        } else {
+            button = ToolbarButton(symbol: Self.symbol(for: command), label: Self.label(for: command), toggles: false)
         }
-
-        for (index, command) in Self.commands.enumerated() {
-            if command == .undo || command == .cancel { items.append(separator()) }
-            let button = makeButton(symbol: Self.symbol(for: command), label: Self.label(for: command), action: #selector(commandClicked(_:)))
-            button.tag = index
-            commandButtons[command] = button
-            items.append(button)
-        }
-        return items
-    }
-
-    /// Bottom row: colors and stroke width.
-    private func makeStyleItems() -> [NSView] {
-        var items: [NSView] = []
-
-        colorControl.segmentCount = AnnotationColor.allCases.count
-        colorControl.trackingMode = .selectOne
-                for (index, color) in AnnotationColor.allCases.enumerated() {
-            colorControl.setImage(Self.swatch(for: color), forSegment: index)
-            colorControl.setWidth(18, forSegment: index)
-            colorControl.setToolTip(color.rawValue.capitalized, forSegment: index)
-        }
-        colorControl.target = self
-        colorControl.action = #selector(colorChanged(_:))
-        colorControl.setAccessibilityLabel("Color")
-        items.append(colorControl)
-
-        widthControl.segmentCount = StrokeWidth.allCases.count
-        widthControl.trackingMode = .selectOne
-        for (index, width) in StrokeWidth.allCases.enumerated() {
-            widthControl.setImage(Self.widthImage(for: width), forSegment: index)
-            widthControl.setWidth(22, forSegment: index)
-            widthControl.setToolTip(width.rawValue.capitalized, forSegment: index)
-        }
-        widthControl.target = self
-        widthControl.action = #selector(widthChanged(_:))
-        widthControl.setAccessibilityLabel("Stroke width")
-        items.append(separator())
-        items.append(widthControl)
-        return items
-    }
-
-    private func makeButton(symbol: String, label: String, action: Selector) -> NSButton {
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: label) ?? NSImage()
-        let button = NSButton(image: image, target: self, action: action)
-        button.bezelStyle = .accessoryBarAction
-        button.imagePosition = .imageOnly
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.widthAnchor.constraint(equalToConstant: Self.buttonWidth).isActive = true
-        button.toolTip = label
-        button.setAccessibilityLabel(label)
+        button.target = self
+        button.action = #selector(commandClicked(_:))
+        button.tag = Self.commands.firstIndex(of: command) ?? 0
+        commandButtons[command] = button
         return button
     }
 
-    private func separator() -> NSView {
-        let box = NSBox()
-        box.boxType = .separator
-        box.translatesAutoresizingMaskIntoConstraints = false
-        box.widthAnchor.constraint(equalToConstant: 1).isActive = true
-        box.heightAnchor.constraint(equalToConstant: 18).isActive = true
-        return box
+    private static let groupSpacing: CGFloat = 6
+
+    /// Groups of items, each tight together, with hairline dividers between groups.
+    private func row(groups: [[NSView]]) -> NSStackView {
+        var views: [NSView] = []
+        for (index, group) in groups.enumerated() {
+            if index > 0 { views.append(ToolbarDivider()) }
+            views.append(contentsOf: group)
+        }
+        let row = NSStackView(views: views)
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 2
+        for view in views where view is ToolbarDivider {
+            row.setCustomSpacing(Self.groupSpacing, after: view)
+            if let before = views.firstIndex(of: view).map({ views[$0 - 1] }) {
+                row.setCustomSpacing(Self.groupSpacing, after: before)
+            }
+        }
+        return row
     }
 
     // MARK: Actions
@@ -154,14 +190,12 @@ final class AnnotationToolbar: NSVisualEffectView {
         actions.selectTool(AnnotationTool.allCases[sender.tag])
     }
 
-    @objc private func colorChanged(_ sender: NSSegmentedControl) {
-        guard AnnotationColor.allCases.indices.contains(sender.selectedSegment) else { return }
-        actions.selectColor(AnnotationColor.allCases[sender.selectedSegment])
+    @objc private func colorClicked(_ sender: NSButton) {
+        actions.selectColor(AnnotationColor.allCases[sender.tag])
     }
 
-    @objc private func widthChanged(_ sender: NSSegmentedControl) {
-        guard StrokeWidth.allCases.indices.contains(sender.selectedSegment) else { return }
-        actions.selectWidth(StrokeWidth.allCases[sender.selectedSegment])
+    @objc private func widthClicked(_ sender: NSButton) {
+        actions.selectWidth(StrokeWidth.allCases[sender.tag])
     }
 
     @objc private func commandClicked(_ sender: NSButton) {
@@ -177,13 +211,18 @@ final class AnnotationToolbar: NSVisualEffectView {
         case .line: "line.diagonal"
         case .pen: "pencil.tip"
         case .marker: "highlighter"
-        case .text: "textformat"
+        case .text: "character.textbox"
         case .pixelate: "checkerboard.rectangle"
         }
     }
 
     static func label(for tool: AnnotationTool) -> String {
-        tool == .pixelate ? "Pixelate" : tool.rawValue.capitalized
+        let name = tool == .pixelate ? "Pixelate" : tool.rawValue.capitalized
+        return "\(name) (\(OverlayKeyMap.toolKey(for: tool).uppercased()))"
+    }
+
+    static func label(for color: AnnotationColor, index: Int) -> String {
+        "\(color.rawValue.capitalized) (\(index + 1))"
     }
 
     static func symbol(for command: OverlayCommand) -> String {
@@ -194,6 +233,8 @@ final class AnnotationToolbar: NSVisualEffectView {
         case .save: "square.and.arrow.down"
         case .copy: "doc.on.doc"
         case .deleteAnnotation: "trash"
+        case .selectTool(let tool): symbol(for: tool)
+        case .selectColor: "paintpalette"
         }
     }
 
@@ -205,27 +246,17 @@ final class AnnotationToolbar: NSVisualEffectView {
         case .save: "Save (⌘S)"
         case .copy: "Copy (⌘C)"
         case .deleteAnnotation: "Delete"
-        }
-    }
-
-    private static func swatch(for color: AnnotationColor) -> NSImage {
-        NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
-            let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1))
-            color.nsColor.setFill()
-            circle.fill()
-            NSColor.gray.setStroke()
-            circle.lineWidth = 0.5
-            circle.stroke()
-            return true
+        case .selectTool(let tool): label(for: tool)
+        case .selectColor(let color): color.rawValue.capitalized
         }
     }
 
     private static func widthImage(for width: StrokeWidth) -> NSImage {
-        let image = NSImage(size: NSSize(width: 16, height: 12), flipped: false) { rect in
+        let image = NSImage(size: NSSize(width: 18, height: 14), flipped: false) { rect in
             let line = NSBezierPath()
-            line.move(to: NSPoint(x: 2, y: rect.midY))
-            line.line(to: NSPoint(x: rect.maxX - 2, y: rect.midY))
-            line.lineWidth = width.lineWidth / 1.5
+            line.move(to: NSPoint(x: 3, y: rect.midY))
+            line.line(to: NSPoint(x: rect.maxX - 3, y: rect.midY))
+            line.lineWidth = width.lineWidth / 1.5 + 0.5
             line.lineCapStyle = .round
             NSColor.black.setStroke()
             line.stroke()
@@ -233,5 +264,287 @@ final class AnnotationToolbar: NSVisualEffectView {
         }
         image.isTemplate = true
         return image
+    }
+
+    private static func roundedMask(radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
+}
+
+// MARK: - Controls
+
+/// Borderless glyph button like a macOS toolbar item: a soft rounded highlight on hover
+/// and press, and an accent tint while toggled on.
+final class ToolbarButton: NSButton {
+    private var isHovered = false { didSet { needsDisplay = true } }
+
+    convenience init(symbol: String, label: String, toggles: Bool) {
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        let image =
+            NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
+            .withSymbolConfiguration(config) ?? NSImage()
+        self.init(image: image, label: label, toggles: toggles)
+    }
+
+    init(image: NSImage, label: String, toggles: Bool) {
+        super.init(frame: NSRect(origin: .zero, size: AnnotationToolbar.buttonSize))
+        self.image = image
+        imagePosition = .imageOnly
+        imageScaling = .scaleNone
+        isBordered = false
+        setButtonType(toggles ? .pushOnPushOff : .momentaryChange)
+        if let cell = cell as? NSButtonCell {
+            // All state feedback is drawn by `draw(_:)`.
+            cell.highlightsBy = []
+            cell.showsStateBy = []
+        }
+        toolTip = label
+        setAccessibilityLabel(label)
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: AnnotationToolbar.buttonSize.width),
+            heightAnchor.constraint(equalToConstant: AnnotationToolbar.buttonSize.height),
+        ])
+        refreshTint()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    /// Symbol images carry their own alignment insets; keep every button a plain square.
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsets() }
+    override var intrinsicContentSize: NSSize { AnnotationToolbar.buttonSize }
+
+    override var state: NSControl.StateValue {
+        didSet { refreshTint() }
+    }
+
+    override var isEnabled: Bool {
+        didSet { refreshTint() }
+    }
+
+    override var isHighlighted: Bool {
+        didSet { needsDisplay = true }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self
+            ))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if let fill = backgroundColor {
+            fill.setFill()
+            NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
+        }
+        super.draw(dirtyRect)
+    }
+
+    private var backgroundColor: NSColor? {
+        guard isEnabled else { return nil }
+        if state == .on { return .controlAccentColor.withAlphaComponent(isHighlighted ? 0.32 : 0.2) }
+        if isHighlighted { return .labelColor.withAlphaComponent(0.14) }
+        if isHovered { return .labelColor.withAlphaComponent(0.08) }
+        return nil
+    }
+
+    private func refreshTint() {
+        contentTintColor = state == .on && isEnabled ? .controlAccentColor : nil
+        needsDisplay = true
+    }
+}
+
+/// The primary action: icon plus title, tinted with the accent color like a toggled-on
+/// tool, so it stands out without clashing. Same height and corner radius as
+/// `ToolbarButton`, so it lines up with the glyphs (a push bezel doesn't).
+final class PrimaryToolbarButton: NSButton {
+    static let horizontalPadding: CGFloat = 9
+    static let iconSpacing: CGFloat = 5
+
+    private let icon: NSImage
+    private let titleFont = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+    private var isHovered = false { didSet { needsDisplay = true } }
+
+    init(title: String, symbol: String, label: String) {
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+        icon =
+            NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) ?? NSImage()
+        super.init(frame: .zero)
+        self.title = title
+        image = icon
+        isBordered = false
+        setButtonType(.momentaryChange)
+        toolTip = label
+        setAccessibilityLabel(label)
+        translatesAutoresizingMaskIntoConstraints = false
+        setFrameSize(intrinsicContentSize)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsets() }
+
+    override var intrinsicContentSize: NSSize {
+        let content = icon.size.width + Self.iconSpacing + ceil(titleSize.width)
+        return NSSize(width: ceil(content) + Self.horizontalPadding * 2, height: AnnotationToolbar.buttonSize.height)
+    }
+
+    override var isHighlighted: Bool {
+        didSet { needsDisplay = true }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self
+            ))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    private var titleSize: NSSize {
+        (title as NSString).size(withAttributes: [.font: titleFont])
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let accent = NSColor.controlAccentColor
+        accent.withAlphaComponent(isHighlighted ? 0.34 : isHovered ? 0.26 : 0.2).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
+
+        let iconRect = NSRect(
+            x: Self.horizontalPadding,
+            y: (bounds.height - icon.size.height) / 2,
+            width: icon.size.width,
+            height: icon.size.height
+        )
+        Self.tinted(icon, accent).draw(in: iconRect)
+
+        let text = NSAttributedString(string: title, attributes: [.font: titleFont, .foregroundColor: accent])
+        text.draw(at: NSPoint(x: iconRect.maxX + Self.iconSpacing, y: (bounds.height - titleSize.height) / 2))
+    }
+
+    private static func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
+        NSImage(size: image.size, flipped: false) { rect in
+            image.draw(in: rect)
+            color.setFill()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+    }
+}
+
+/// Round color swatch. The selected one gets a ring, like the macOS Markup palette.
+final class ColorSwatchButton: NSButton {
+    let color: AnnotationColor
+    private var isHovered = false { didSet { needsDisplay = true } }
+
+    init(color: AnnotationColor, label: String) {
+        self.color = color
+        super.init(frame: NSRect(x: 0, y: 0, width: AnnotationToolbar.swatchSize, height: AnnotationToolbar.swatchSize))
+        title = ""
+        isBordered = false
+        setButtonType(.pushOnPushOff)
+        toolTip = label
+        setAccessibilityLabel(label)
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: AnnotationToolbar.swatchSize),
+            heightAnchor.constraint(equalToConstant: AnnotationToolbar.swatchSize),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsets() }
+    override var intrinsicContentSize: NSSize { NSSize(width: AnnotationToolbar.swatchSize, height: AnnotationToolbar.swatchSize) }
+
+    override var state: NSControl.StateValue {
+        didSet { needsDisplay = true }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                owner: self
+            ))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let ringWidth: CGFloat = 2
+        if state == .on || isHovered {
+            let ring = NSBezierPath(ovalIn: bounds.insetBy(dx: ringWidth / 2, dy: ringWidth / 2))
+            ring.lineWidth = ringWidth
+            (state == .on ? NSColor.labelColor.withAlphaComponent(0.85) : .labelColor.withAlphaComponent(0.25)).setStroke()
+            ring.stroke()
+        }
+        let dot = NSBezierPath(ovalIn: bounds.insetBy(dx: 5, dy: 5))
+        color.nsColor.setFill()
+        dot.fill()
+        // Hairline edge so white and black stay visible on any background.
+        NSColor.labelColor.withAlphaComponent(0.2).setStroke()
+        dot.lineWidth = 0.5
+        dot.stroke()
+    }
+}
+
+/// Short vertical hairline between toolbar groups.
+final class ToolbarDivider: NSView {
+    static let width: CGFloat = 1
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: Self.width, height: 18))
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: Self.width),
+            heightAnchor.constraint(equalToConstant: 18),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.separatorColor.setFill()
+        bounds.fill()
     }
 }
