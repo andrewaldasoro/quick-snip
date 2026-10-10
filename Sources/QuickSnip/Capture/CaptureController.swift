@@ -1,13 +1,16 @@
+import CoreGraphics
 import Foundation
 import OSLog
 
-enum OverlayCommand: Equatable, Sendable {
+enum OverlayCommand: Hashable, Sendable {
     case copy
     case save
     case cancel
     case undo
     case redo
     case deleteAnnotation
+    case selectTool(AnnotationTool)
+    case selectColor(AnnotationColor)
 }
 
 @MainActor
@@ -34,20 +37,27 @@ final class CaptureController {
     private let presenter: any OverlayPresenting
     private let pasteboard: any ImagePasteboard
     private let saver: ScreenshotSaver
+    private let settings: AppSettings?
+    private let thumbnails: (any ThumbnailPresenting)?
 
     private(set) var session: CaptureSession?
     private var isCapturing = false
 
+    /// `settings` overrides the saver's directory and format at save time.
     init(
         capturer: any DisplayCapturing,
         presenter: any OverlayPresenting,
         pasteboard: any ImagePasteboard,
-        saver: ScreenshotSaver
+        saver: ScreenshotSaver,
+        settings: AppSettings? = nil,
+        thumbnails: (any ThumbnailPresenting)? = nil
     ) {
         self.capturer = capturer
         self.presenter = presenter
         self.pasteboard = pasteboard
         self.saver = saver
+        self.settings = settings
+        self.thumbnails = thumbnails
     }
 
     var isActive: Bool { session != nil || isCapturing }
@@ -56,6 +66,7 @@ final class CaptureController {
         guard !isActive else { return }
         isCapturing = true
         defer { isCapturing = false }
+        thumbnails?.dismiss()
 
         do {
             let displays = try await capturer.captureAllDisplays()
@@ -73,6 +84,13 @@ final class CaptureController {
         }
     }
 
+    /// Displays were added, removed, or rearranged: the frozen images no longer match.
+    func screenConfigurationChanged() {
+        guard session != nil else { return }
+        logger.notice("Screen configuration changed; cancelling capture")
+        finish()
+    }
+
     @discardableResult
     func handle(_ command: OverlayCommand) -> Outcome {
         switch command {
@@ -81,17 +99,29 @@ final class CaptureController {
             return .cancelled
 
         case .copy:
-            guard let png = encodedSelection() else { return .noSelection }
+            guard let output = renderOutput(),
+                let png = ImageEncoder.encode(output.image, as: .png, scale: output.scale)
+            else { return .noSelection }
             pasteboard.writePNG(png)
             finish()
+            showThumbnail(output, fileURL: nil)
             return .copied
 
         case .save:
-            guard let png = encodedSelection() else { return .noSelection }
+            guard let output = renderOutput() else { return .noSelection }
+            var saver = saver
+            if let settings {
+                saver.directory = settings.saveDirectory
+                saver.format = settings.imageFormat
+            }
             do {
-                let url = try saver.save(png)
+                guard let data = ImageEncoder.encode(output.image, as: saver.format, scale: output.scale) else {
+                    return .failed
+                }
+                let url = try saver.save(data)
                 logger.info("Saved \(url.path, privacy: .public)")
                 finish()
+                showThumbnail(output, fileURL: url)
                 return .saved(url)
             } catch {
                 logger.error("Save failed: \(error.localizedDescription, privacy: .public)")
@@ -110,11 +140,33 @@ final class CaptureController {
 
         case .deleteAnnotation:
             return session?.deleteSelectedAnnotation() == true ? .edited : .ignored
+
+        case .selectTool(let tool):
+            guard let session, session.hasSelection else { return .ignored }
+            session.toggleTool(tool)
+            return .edited
+
+        case .selectColor(let color):
+            guard let session, session.hasSelection else { return .ignored }
+            session.setColor(color)
+            return .edited
         }
     }
 
-    private func encodedSelection() -> Data? {
-        session?.renderedImage().flatMap(PNGEncoder.encode)
+    private struct Output {
+        let image: CGImage
+        let scale: CGFloat
+    }
+
+    private func renderOutput() -> Output? {
+        guard let session, let image = session.renderedImage() else { return nil }
+        return Output(image: image, scale: session.outputScale)
+    }
+
+    private func showThumbnail(_ output: Output, fileURL: URL?) {
+        guard let thumbnails, settings?.showThumbnail ?? true else { return }
+        let pointSize = CGSize(width: CGFloat(output.image.width) / output.scale, height: CGFloat(output.image.height) / output.scale)
+        thumbnails.show(output.image, pointSize: pointSize, fileURL: fileURL)
     }
 
     private func finish() {

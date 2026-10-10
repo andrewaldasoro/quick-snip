@@ -7,6 +7,9 @@ QuickSnip: a macOS menu bar screenshot tool. The roadmap is in `plan.md`, with o
 ## Commands
 
 ```bash
+./scripts/check.sh                               # quality gate: format lint, warnings-as-errors build, tests, coverage
+./scripts/check.sh --bundle                      # same, plus test-bundle.sh
+swift format format -i -r Sources Tests scripts Package.swift   # auto-format (config: .swift-format)
 swift build --arch arm64                         # build
 swift test                                       # all tests
 swift test --filter CaptureCoordinatorTests      # one suite
@@ -14,7 +17,8 @@ swift test --filter CaptureCoordinatorTests/captureWithPermissionStartsCapture  
 ./scripts/bundle.sh                              # build + wrap into signed build/QuickSnip.app
 ./scripts/run.sh                                 # bundle, kill running instance, relaunch
 ./scripts/test-bundle.sh                         # integration checks on the built .app (signing, requirement, resources)
-/usr/bin/log stream --predicate 'subsystem == "dev.quicksnip.QuickSnip"'   # app logs
+swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o Support/AppIcon.icns   # regenerate icon
+/usr/bin/log stream --predicate 'subsystem == "io.github.andrewaldasoro.quicksnip"'   # app logs
 ```
 
 - Full Xcode must be the selected developer dir (`xcode-select -p`). The Command Line Tools can't build this: the macOS 27 SDK's SwiftUI `@State` macro plugin ships only with Xcode.
@@ -29,7 +33,7 @@ swift test --filter CaptureCoordinatorTests/captureWithPermissionStartsCapture  
 
 ## Architecture
 
-- **UI split:** SwiftUI for `MenuBarExtra`, Settings and onboarding. AppKit for anything that needs precise windowing or mouse handling (the capture overlay and annotation canvas, from Phase 1 on).
+- **UI split:** SwiftUI for `MenuBarExtra`, Settings and onboarding. Settings lives in an AppKit window (`SettingsWindowController`), not a SwiftUI `Settings` scene, because the menu bar icon can be hidden: reopening the app (`applicationShouldHandleReopen`) must still open it. AppKit for anything that needs precise windowing or mouse handling (the capture overlay and annotation canvas, from Phase 1 on).
 - **Entry point:** `QuickSnipApp` (SwiftUI `@main`) owns the scenes. `AppDelegate` (via `@NSApplicationDelegateAdaptor`) registers the global hotkey (`KeyboardShortcuts.Name.captureArea`) and hands off to `CaptureCoordinator`.
 - **Capture flow:** hotkey → `CaptureCoordinator`, which re-checks the Screen Recording permission (onboarding if missing). Then `CaptureController.start()` → `DisplayCapturing` freezes every display into a `CapturedDisplay` (AppKit global frame + full-res `CGImage`) → a `CaptureSession` is created → `OverlayPresenting` shows it. The overlay sends an `OverlayCommand` (copy / save / cancel) back to the controller, which crops, PNG-encodes, and writes to `ImagePasteboard` or `ScreenshotSaver`.
 - **Coordinate spaces.** Getting these wrong is the main bug source:
@@ -40,15 +44,41 @@ swift test --filter CaptureCoordinatorTests/captureWithPermissionStartsCapture  
 - **Annotations:** `Annotation` values (rectangle, line, arrow, pen, marker, text, pixelate) are stored in display-local points, the same space as the selection. `AnnotationDocument` owns the committed list and undo (a snapshot per change, `groupsByEvent = false`). `CaptureSession` routes the mouse: handles resize the selection; with a tool active, a drag draws and a click places text; with no tool, a drag moves the annotation under the cursor. In-progress shapes are a preview (`draft`) and are committed once on mouse-up, so each action is one undo step.
 - **Rendering:** `AnnotationRenderer` draws into any context whose user space is display-local points with a top-left origin. The flipped overlay view already has that; `ExportRenderer` sets up a pixel context to match (scale plus a y-flip) and produces the full-resolution output. Text uses `NSGraphicsContext(flipped: true)`; pixelate flips images locally.
 - **Overlay window level:** `.screenSaver`, which is above where macOS draws pop-up menus. Don't use `NSPopUpButton` or menus in the overlay; they would open hidden behind it.
-- **OS seams:** system calls sit behind small protocols (`ScreenCaptureAccess`, `URLOpening`, `OnboardingPresenting`, `DisplayCapturing`, `OverlayPresenting`, `ImagePasteboard`) with real defaults, so the logic runs in tests without TCC or windows. New system dependencies must follow the same pattern.
+- **Toolbar look:** native macOS style. `NSGlassEffectView` on macOS 26+ (vibrancy fallback), borderless `ToolbarButton` glyphs (hover/press highlight, accent tint when on), `ColorSwatchButton` circles with a selection ring, and one custom-drawn `PrimaryToolbarButton` (accent fill, 28 pt like the glyphs) for the primary action (Copy). Avoid push bezels: their insets break the row alignment. Keep new controls in that style.
+- **Output and preferences:** `AppSettings` (UserDefaults: save folder, PNG/JPEG, thumbnail toggle) is read by `CaptureController` at save time. `ImageEncoder` writes DPI = 72 × the display scale, so Retina captures open at their point size. After a copy or save, `ThumbnailPresenting` shows a preview. The controller dismisses it at the start of the next capture, and `ScreenCaptureKitCapturer` also leaves QuickSnip's own windows out of every capture.
+- **Overlay commands:** every key and toolbar action becomes an `OverlayCommand` that `CaptureController.handle` runs: copy, save, cancel, undo, redo, delete, `selectTool`, and `selectColor`. Key bindings live only in `OverlayKeyMap`, and toolbar tooltips read them from there.
+- **OS seams:** system calls sit behind small protocols (`ScreenCaptureAccess`, `URLOpening`, `OnboardingPresenting`, `DisplayCapturing`, `OverlayPresenting`, `ImagePasteboard`, `ThumbnailPresenting`, `LoginItemService`, `SettingsPresenting`, `AppActivating`) with real defaults, so the logic runs in tests without TCC or windows. New system dependencies must follow the same pattern.
+- **Focus quirk:** as a Dock-less app, QuickSnip's `NSApp.activate()` is a request macOS can decline, so windows opened unfocused. `SystemAppActivation` forces it with the deprecated `activate(ignoringOtherApps:)`, and `NSWindow.bringToFront()` raises the window. Every window QuickSnip opens must go through both.
 - **Permission quirk:** `CGPreflightScreenCaptureAccess` may keep returning `false` for the running process after the user grants access. Onboarding polls the permission and offers Quit & Reopen.
+
+## Code rules (mandatory)
+
+Enforced by `./scripts/check.sh`. Where a rule can't be checked automatically, review against it before finishing.
+
+- **Formatting:** `swift format` with `.swift-format` (4 spaces, 140 columns, ordered imports, no semicolons, `for` loops over `forEach`, lowerCamelCase, `///` doc comments). Run the formatter rather than fixing lint errors by hand.
+- **No warnings.** The gate builds with `-warnings-as-errors`. Fix the cause; don't silence it.
+- **Small, single-purpose units.** One responsibility per type, one main type per file, named after the file. Split a function once it does more than one thing or passes ~40 lines; split a type once it mixes concerns (e.g. layout math vs. drawing vs. event handling). Pure logic goes in value types (`SelectionEditor`, `CropMath`, `ToolbarLayout`) so it's testable without windows.
+- **Names say what, not how.** Full words, no abbreviations except standard ones (`url`, `id`, `rect`). Booleans read as assertions (`isHovered`, `canUndo`). Functions are verbs; types are nouns.
+- **Dependencies are injected.** Every system call (TCC, ScreenCaptureKit, pasteboard, file system, `SMAppService`, windows) sits behind a protocol with a real default implementation (see OS seams). No singletons in logic; `NSApp`, `NSWorkspace.shared` etc. only in adapters and views.
+- **Keep OS adapters thin.** Adapters only forward to the system API. If one grows an `if`, move that decision into a tested type.
+- **Access control:** `private` by default; widen only for a caller or for `@testable` tests. `final` on classes unless designed for subclassing.
+- **Concurrency:** Swift 6 strict mode. UI and state types are `@MainActor`. Prefer `async`/`await` over callbacks. `MainActor.assumeIsolated` only where AppKit guarantees the main thread, with a comment saying why.
+- **Errors:** no `try!`, no force unwraps in `Sources/` except for invariants that are provably safe, each with a comment. Surface failures to the user (log, inline message) rather than swallowing them; `try?` needs a reason.
+- **No magic numbers.** Named `static let` constants on the owning type (`AnnotationToolbar.buttonSize`, `ToolbarLayout.margin`).
+- **Comments explain why,** not what. Every non-obvious workaround (macOS quirk, window level, coordinate flip) gets one. Delete commented-out code.
+- **Single source of truth.** Key bindings in `OverlayKeyMap`, preferences in `AppSettings`, styling constants on their control. Don't duplicate them.
+- **Don't reach for new dependencies.** Prefer Apple frameworks; any package add needs a reason in the change description.
 
 ## Testing rules (mandatory)
 
 - **Every unit of code gets unit tests.** Each type or file with logic has a matching suite in `Tests/QuickSnipTests/Unit/`. Write the tests with the code, in the same change. Nothing ships untested.
 - **Integration tests for the most common use cases go first.** `Tests/QuickSnipTests/Integration/` covers end-to-end user flows (launch → onboarding → grant → capture; later select → annotate → copy/save) through the real wiring, faking only the OS seams. When a feature adds a common flow, write its integration test before or alongside the feature.
 - **Every fix gets a regression test.** Write a test that reproduces the bug and fails before the fix, then passes after. Name it after the bug's behavior.
-- **Test fakes and spies** go in `Tests/QuickSnipTests/Support/`. Reuse them; don't duplicate them per suite. `TestImages` builds synthetic captures whose pixels encode their own coordinates (r = x, g = y), so a test can check exactly which region a crop came from.
+- **Test fakes and spies** go in `Tests/QuickSnipTests/Support/`. Use `TestDefaults` for an isolated `UserDefaults` suite. Reuse them; don't duplicate them per suite. `TestImages` builds synthetic captures whose pixels encode their own coordinates (r = x, g = y), so a test can check exactly which region a crop came from.
 - **Framework:** Swift Testing (`import Testing`, `@Test`, `#expect`), not XCTest. Mark suites `@MainActor` when they touch main-actor types.
 - **Coordinate math is a priority.** Points ↔ pixels, `backingScaleFactor`, multi-display origins and crop rects need thorough tests, including mixed-DPI cases. Most bugs concentrate there.
-- Run `swift test` before calling any task done. All tests must pass.
+- **Test structure:** one behavior per test, named as a sentence about that behavior (`copyWithThumbnailDisabledShowsNothing`). Arrange / act / assert, with a blank line between them when it helps. No logic (loops, branches) in asserts beyond simple iteration over cases; use parameterized `@Test(arguments:)` instead.
+- **Test the behavior, not the implementation.** Assert on outputs and spy calls the user would notice, not on private state. Don't loosen a test to make it pass; fix the code or explain why the expectation changed.
+- **Deterministic and independent.** No real time (inject `now`/clocks), no real network, no TCC, no sleeps. Every test must pass when run alone with `--filter` (for example, call `NSApplication.shared` before touching `NSApp`).
+- **Coverage gate:** total line coverage ≥ 85% and each file ≥ 60%, measured on `Sources/` minus the OS-adapter/app-shell files listed in `scripts/check.sh` (`EXEMPT`). Thresholds only go up. Adding a file to `EXEMPT` requires that it holds no logic.
+- **Done means:** `./scripts/check.sh` passes (`--bundle` too when touching `bundle.sh`, `Info.plist` or entitlements), and the new behavior has unit tests, an integration test if it's a common flow, and a regression test if it's a fix.

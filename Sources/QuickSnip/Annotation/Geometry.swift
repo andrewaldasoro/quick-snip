@@ -17,7 +17,8 @@ enum Geometry {
     }
 
     static func distance(from p: CGPoint, toSegment a: CGPoint, _ b: CGPoint) -> CGFloat {
-        let dx = b.x - a.x, dy = b.y - a.y
+        let dx = b.x - a.x
+        let dy = b.y - a.y
         let lengthSquared = dx * dx + dy * dy
         guard lengthSquared > 0 else { return distance(p, a) }
         let t = max(0, min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared))

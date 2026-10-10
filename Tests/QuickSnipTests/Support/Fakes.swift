@@ -1,4 +1,7 @@
+import AppKit
+import CoreGraphics
 import Foundation
+
 @testable import QuickSnip
 
 final class FakeScreenCaptureAccess: ScreenCaptureAccess {
@@ -32,6 +35,18 @@ final class SpyURLOpener: URLOpening {
 
 @MainActor
 final class SpyOnboarding: OnboardingPresenting {
+    private(set) var showCount = 0
+    func show() { showCount += 1 }
+}
+
+@MainActor
+final class SpyAppActivation: AppActivating {
+    private(set) var activateCount = 0
+    func activate() { activateCount += 1 }
+}
+
+@MainActor
+final class SpySettingsWindow: SettingsPresenting {
     private(set) var showCount = 0
     func show() { showCount += 1 }
 }
@@ -92,3 +107,48 @@ final class SpyPasteboard: ImagePasteboard {
 }
 
 struct TestError: Error {}
+
+@MainActor
+final class SpyThumbnails: ThumbnailPresenting {
+    struct Shown {
+        let size: CGSize
+        let pointSize: CGSize
+        let fileURL: URL?
+    }
+
+    private(set) var shown: [Shown] = []
+    private(set) var dismissCount = 0
+
+    func show(_ image: CGImage, pointSize: CGSize, fileURL: URL?) {
+        shown.append(Shown(size: CGSize(width: image.width, height: image.height), pointSize: pointSize, fileURL: fileURL))
+    }
+
+    func dismiss() { dismissCount += 1 }
+}
+
+@MainActor
+final class FakeLoginItemService: LoginItemService {
+    var isEnabled = false
+    var error: (any Error)?
+    private(set) var requests: [Bool] = []
+
+    func setEnabled(_ enabled: Bool) throws {
+        requests.append(enabled)
+        if let error { throw error }
+        isEnabled = enabled
+    }
+}
+
+/// Isolated `UserDefaults` per test, removed on deinit.
+final class TestDefaults {
+    let suiteName = "QuickSnipTests-\(UUID().uuidString)"
+    let defaults: UserDefaults
+
+    init() {
+        defaults = UserDefaults(suiteName: suiteName)!
+    }
+
+    deinit {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+}

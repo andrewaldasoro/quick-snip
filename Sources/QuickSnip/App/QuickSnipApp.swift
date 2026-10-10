@@ -5,12 +5,14 @@ struct QuickSnipApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("QuickSnip", systemImage: "camera.viewfinder") {
+        MenuBarExtra(
+            "QuickSnip", systemImage: "camera.viewfinder",
+            isInserted: Binding(
+                get: { appDelegate.settings.showMenuBarIcon },
+                set: { appDelegate.settings.showMenuBarIcon = $0 }
+            )
+        ) {
             MenuContent(appDelegate: appDelegate)
-        }
-
-        Settings {
-            SettingsView()
         }
     }
 }
@@ -25,8 +27,8 @@ private struct MenuContent: View {
 
         Divider()
 
-        SettingsLink {
-            Text("Settings…")
+        Button("Settings…") {
+            appDelegate.showSettings()
         }
         .keyboardShortcut(",")
 

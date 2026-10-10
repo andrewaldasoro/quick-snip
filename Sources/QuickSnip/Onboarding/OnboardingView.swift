@@ -14,8 +14,10 @@ struct OnboardingView: View {
             Label("Screen Recording access", systemImage: "rectangle.dashed.badge.record")
                 .font(.title2.bold())
 
-            Text("QuickSnip needs Screen Recording permission to capture your screen. Images never leave your Mac unless you choose to share them.")
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                "QuickSnip needs Screen Recording permission to capture your screen. Images never leave your Mac unless you choose to share them."
+            )
+            .fixedSize(horizontal: false, vertical: true)
 
             if permission.isGranted {
                 Label("Permission granted", systemImage: "checkmark.circle.fill")

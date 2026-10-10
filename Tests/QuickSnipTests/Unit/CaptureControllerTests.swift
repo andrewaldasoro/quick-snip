@@ -1,6 +1,8 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
@@ -192,5 +194,138 @@ struct CaptureControllerEditingTests {
         #expect(controller.handle(.undo) == .ignored)
         #expect(controller.handle(.redo) == .ignored)
         #expect(controller.handle(.deleteAnnotation) == .ignored)
+    }
+}
+
+@MainActor
+struct CaptureControllerOutputTests {
+    private let retina = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), scale: 2)
+
+    private func make(
+        settings: AppSettings? = nil,
+        thumbnails: SpyThumbnails? = SpyThumbnails(),
+        directory: URL = TestImages.temporaryDirectory()
+    ) -> (CaptureController, SpyOverlayPresenter, SpyPasteboard) {
+        let presenter = SpyOverlayPresenter()
+        let pasteboard = SpyPasteboard()
+        let controller = CaptureController(
+            capturer: FakeDisplayCapturing(displays: [retina]),
+            presenter: presenter,
+            pasteboard: pasteboard,
+            saver: ScreenshotSaver(directory: directory, now: { Date(timeIntervalSince1970: 0) }, timeZone: .gmt),
+            settings: settings,
+            thumbnails: thumbnails
+        )
+        return (controller, presenter, pasteboard)
+    }
+
+    private func select(_ controller: CaptureController) throws {
+        TestSessions.select(try #require(controller.session), on: 1, CGRect(x: 10, y: 10, width: 40, height: 30))
+    }
+
+    @Test func startDismissesPreviousThumbnail() async {
+        let thumbnails = SpyThumbnails()
+        let (controller, _, _) = make(thumbnails: thumbnails)
+        await controller.start()
+        #expect(thumbnails.dismissCount == 1)
+    }
+
+    @Test func copyShowsThumbnailAtPointSize() async throws {
+        let thumbnails = SpyThumbnails()
+        let (controller, _, _) = make(thumbnails: thumbnails)
+        await controller.start()
+        try select(controller)
+        controller.handle(.copy)
+
+        #expect(thumbnails.shown.count == 1)
+        #expect(thumbnails.shown.first?.size == CGSize(width: 80, height: 60))
+        #expect(thumbnails.shown.first?.pointSize == CGSize(width: 40, height: 30))
+        #expect(thumbnails.shown.first?.fileURL == nil)
+    }
+
+    @Test func saveShowsThumbnailWithFile() async throws {
+        let thumbnails = SpyThumbnails()
+        let directory = TestImages.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let (controller, _, _) = make(thumbnails: thumbnails, directory: directory)
+        await controller.start()
+        try select(controller)
+
+        guard case .saved(let url) = controller.handle(.save) else {
+            Issue.record("Expected save")
+            return
+        }
+        #expect(thumbnails.shown.first?.fileURL == url)
+    }
+
+    @Test func thumbnailCanBeTurnedOff() async throws {
+        let store = TestDefaults()
+        let settings = AppSettings(defaults: store.defaults)
+        settings.showThumbnail = false
+        let thumbnails = SpyThumbnails()
+        let (controller, _, _) = make(settings: settings, thumbnails: thumbnails)
+        await controller.start()
+        try select(controller)
+        controller.handle(.copy)
+        #expect(thumbnails.shown.isEmpty)
+    }
+
+    @Test func saveUsesSettingsFolderAndFormat() async throws {
+        let store = TestDefaults()
+        let settings = AppSettings(defaults: store.defaults)
+        let folder = TestImages.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        settings.saveDirectory = folder
+        settings.imageFormat = .jpeg
+        let (controller, _, _) = make(settings: settings)
+        await controller.start()
+        try select(controller)
+
+        guard case .saved(let url) = controller.handle(.save) else {
+            Issue.record("Expected save")
+            return
+        }
+        #expect(url.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL)
+        #expect(url.pathExtension == "jpg")
+        let data = try Data(contentsOf: url)
+        #expect(Array(data.prefix(3)) == [0xFF, 0xD8, 0xFF])
+    }
+
+    @Test func copiedPNGCarriesRetinaDPI() async throws {
+        let (controller, _, pasteboard) = make()
+        await controller.start()
+        try select(controller)
+        controller.handle(.copy)
+
+        let data = try #require(pasteboard.written.last)
+        let source = try #require(CGImageSourceCreateWithData(data as CFData, nil))
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        #expect((props?[kCGImagePropertyDPIWidth] as? NSNumber)?.doubleValue.rounded() == 144)
+    }
+
+    @Test func toolAndColorCommandsNeedASelection() async throws {
+        let (controller, _, _) = make()
+        await controller.start()
+        #expect(controller.handle(.selectTool(.arrow)) == .ignored)
+
+        try select(controller)
+        #expect(controller.handle(.selectTool(.arrow)) == .edited)
+        #expect(controller.session?.tool == .arrow)
+        #expect(controller.handle(.selectColor(.green)) == .edited)
+        #expect(controller.session?.style.color == .green)
+    }
+
+    @Test func screenChangeCancelsActiveCapture() async {
+        let (controller, presenter, _) = make()
+        await controller.start()
+        controller.screenConfigurationChanged()
+        #expect(presenter.dismissCount == 1)
+        #expect(!controller.isActive)
+    }
+
+    @Test func screenChangeWithoutCaptureDoesNothing() {
+        let (controller, presenter, _) = make()
+        controller.screenConfigurationChanged()
+        #expect(presenter.dismissCount == 0)
     }
 }

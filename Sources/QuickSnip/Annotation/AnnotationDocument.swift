@@ -29,7 +29,8 @@ final class AnnotationDocument {
 
     func update(_ annotation: Annotation, actionName: String) {
         guard let index = annotations.firstIndex(where: { $0.id == annotation.id }),
-              annotations[index] != annotation else { return }
+            annotations[index] != annotation
+        else { return }
         var updated = annotations
         updated[index] = annotation
         replaceAll(updated, actionName: actionName)

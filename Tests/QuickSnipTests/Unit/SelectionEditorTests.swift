@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+
 @testable import QuickSnip
 
 struct SelectionEditorTests {
@@ -140,7 +141,7 @@ struct SelectionEditorTests {
 
     @Test func resizePastOppositeEdgeFlips() {
         var editor = editor(with: CGRect(x: 50, y: 20, width: 100, height: 60))
-        editor.mouseDown(at: CGPoint(x: 50, y: 50))   // left edge
+        editor.mouseDown(at: CGPoint(x: 50, y: 50))  // left edge
         editor.mouseUp(at: CGPoint(x: 180, y: 50))
         #expect(editor.selection == CGRect(x: 150, y: 20, width: 30, height: 60))
     }

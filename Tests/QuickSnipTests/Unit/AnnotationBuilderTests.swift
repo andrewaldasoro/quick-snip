@@ -1,11 +1,12 @@
 import CoreGraphics
 import Testing
+
 @testable import QuickSnip
 
 struct AnnotationBuilderTests {
     private func build(_ tool: AnnotationTool, _ points: [CGPoint]) -> AnnotationBuilder {
         var builder = AnnotationBuilder(tool: tool, style: .default, start: points[0])
-        points.dropFirst().forEach { builder.add($0) }
+        for point in points.dropFirst() { builder.add(point) }
         return builder
     }
 

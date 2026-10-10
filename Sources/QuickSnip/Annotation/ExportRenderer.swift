@@ -10,16 +10,21 @@ enum ExportRenderer {
         cache: PixelateCache
     ) -> CGImage? {
         guard let pixelRect = CropMath.pixelRect(for: selection, in: display),
-              let base = display.image.cropping(to: pixelRect) else { return nil }
+            let base = display.image.cropping(to: pixelRect)
+        else { return nil }
         guard !annotations.isEmpty else { return base }
 
-        let width = Int(pixelRect.width), height = Int(pixelRect.height)
-        let colorSpace = display.image.colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
+        let width = Int(pixelRect.width)
+        let height = Int(pixelRect.height)
+        let colorSpace =
+            display.image.colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
             ?? CGColorSpace(name: CGColorSpace.sRGB)!
-        guard let context = CGContext(
-            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-            space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else { return nil }
 
         context.draw(base, in: CGRect(x: 0, y: 0, width: width, height: height))
 

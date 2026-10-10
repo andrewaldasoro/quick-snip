@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+
 @testable import QuickSnip
 
 struct GeometryTests {
@@ -13,11 +14,12 @@ struct GeometryTests {
         #expect(Geometry.boundingRect(of: []).isNull)
     }
 
-    @Test(arguments: [
-        (CGPoint(x: 5, y: 3), CGFloat(3)),    // above the middle
-        (CGPoint(x: -4, y: 0), 4),            // beyond the start
-        (CGPoint(x: 13, y: 4), 5),            // beyond the end (3-4-5)
-    ] as [(CGPoint, CGFloat)])
+    @Test(
+        arguments: [
+            (CGPoint(x: 5, y: 3), CGFloat(3)),  // above the middle
+            (CGPoint(x: -4, y: 0), 4),  // beyond the start
+            (CGPoint(x: 13, y: 4), 5),  // beyond the end (3-4-5)
+        ] as [(CGPoint, CGFloat)])
     func distanceToSegment(point: CGPoint, expected: CGFloat) {
         #expect(Geometry.distance(from: point, toSegment: CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 0)) == expected)
     }

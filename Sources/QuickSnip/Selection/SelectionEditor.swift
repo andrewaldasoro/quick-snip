@@ -54,6 +54,11 @@ struct SelectionEditor {
 
     var isDragging: Bool { drag != nil }
 
+    var isMoving: Bool {
+        if case .moving = drag { return true }
+        return false
+    }
+
     func hitTest(_ point: CGPoint) -> SelectionHit {
         guard let rect = selection else { return .outside }
         let tolerance = Self.hitTolerance
@@ -76,12 +81,12 @@ struct SelectionEditor {
     }
 
     mutating func mouseDown(at point: CGPoint) {
-        switch hitTest(point) {
-        case .handle(let handle):
-            drag = .resizing(handle, original: selection!)
-        case .inside:
-            drag = .moving(start: point, original: selection!)
-        case .outside:
+        switch (hitTest(point), selection) {
+        case (.handle(let handle), let selection?):
+            drag = .resizing(handle, original: selection)
+        case (.inside, let selection?):
+            drag = .moving(start: point, original: selection)
+        default:
             let anchor = clamp(point)
             drag = .creating(anchor: anchor)
             selection = CGRect(origin: anchor, size: .zero)
@@ -102,16 +107,26 @@ struct SelectionEditor {
             selection = CGRect(origin: CGPoint(x: x, y: y), size: original.size)
 
         case .resizing(let handle, let original):
-            var minX = original.minX, maxX = original.maxX
-            var minY = original.minY, maxY = original.maxY
+            var minX = original.minX
+            var maxX = original.maxX
+            var minY = original.minY
+            var maxY = original.maxY
             switch handle {
-            case .topLeft: minX = p.x; minY = p.y
+            case .topLeft:
+                minX = p.x
+                minY = p.y
             case .top: minY = p.y
-            case .topRight: maxX = p.x; minY = p.y
+            case .topRight:
+                maxX = p.x
+                minY = p.y
             case .right: maxX = p.x
-            case .bottomRight: maxX = p.x; maxY = p.y
+            case .bottomRight:
+                maxX = p.x
+                maxY = p.y
             case .bottom: maxY = p.y
-            case .bottomLeft: minX = p.x; maxY = p.y
+            case .bottomLeft:
+                minX = p.x
+                maxY = p.y
             case .left: minX = p.x
             }
             selection = Self.rect(from: CGPoint(x: minX, y: minY), to: CGPoint(x: maxX, y: maxY))
@@ -122,7 +137,8 @@ struct SelectionEditor {
         guard let drag else { return }
         mouseDragged(to: point)
         if case .creating = drag, let rect = selection,
-           rect.width < Self.minimumSize || rect.height < Self.minimumSize {
+            rect.width < Self.minimumSize || rect.height < Self.minimumSize
+        {
             selection = nil
         }
         self.drag = nil

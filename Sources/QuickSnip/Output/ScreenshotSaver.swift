@@ -1,8 +1,9 @@
 import Foundation
 
-/// Writes PNGs as "QuickSnip yyyy-MM-dd at HH.mm.ss.png", never overwriting existing files.
+/// Writes images as "QuickSnip yyyy-MM-dd at HH.mm.ss.<ext>", never overwriting existing files.
 struct ScreenshotSaver {
     var directory: URL
+    var format: ImageFormat = .png
     var now: () -> Date = Date.init
     var timeZone: TimeZone = .current
 
@@ -18,19 +19,20 @@ struct ScreenshotSaver {
         return "QuickSnip \(formatter.string(from: date))"
     }
 
-    func save(_ png: Data) throws -> URL {
+    func save(_ data: Data) throws -> URL {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let base = baseName(for: now())
-        var url = directory.appendingPathComponent("\(base).png")
+        let ext = format.fileExtension
+        var url = directory.appendingPathComponent("\(base).\(ext)")
         var counter = 2
         while fileManager.fileExists(atPath: url.path) {
-            url = directory.appendingPathComponent("\(base) (\(counter)).png")
+            url = directory.appendingPathComponent("\(base) (\(counter)).\(ext)")
             counter += 1
         }
 
-        try png.write(to: url, options: .withoutOverwriting)
+        try data.write(to: url, options: .withoutOverwriting)
         return url
     }
 }

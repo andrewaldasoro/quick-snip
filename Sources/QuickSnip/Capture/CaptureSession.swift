@@ -223,10 +223,31 @@ final class CaptureSession {
 
     // MARK: Output
 
+    /// Pixels per point of the active display (2 on Retina), for image DPI metadata.
+    var outputScale: CGFloat {
+        guard let id = activeDisplayID, let display = display(id), display.frame.width > 0 else { return 1 }
+        return display.pixelSize.width / display.frame.width
+    }
+
     /// The selected region at full resolution with annotations burned in.
     func renderedImage() -> CGImage? {
         guard let id = activeDisplayID, let rect = selection(on: id), let display = display(id) else { return nil }
         return ExportRenderer.render(display: display, selection: rect, annotations: document.annotations, cache: pixelateCache)
+    }
+
+    // MARK: Cursor
+
+    func cursor(on id: CGDirectDisplayID, at point: CGPoint) -> OverlayCursor {
+        let onActive = id == activeDisplayID
+        let selection = onActive ? self.selection(on: id) : nil
+        return OverlayCursor.resolve(
+            hit: onActive ? hitTest(on: id, at: point) : .outside,
+            tool: tool,
+            insideSelection: selection?.contains(point) ?? false,
+            overAnnotation: selection?.contains(point) == true && document.topmost(at: point) != nil,
+            hasAnnotations: !document.annotations.isEmpty,
+            isMoving: move != nil || isEditingSelection && editors[id]?.isMoving == true
+        )
     }
 
     // MARK: Notifications

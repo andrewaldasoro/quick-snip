@@ -1,10 +1,11 @@
 import CoreGraphics
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
 struct AnnotationTests {
-    private let style = AnnotationStyle(color: .red, width: .medium)   // 4pt
+    private let style = AnnotationStyle(color: .red, width: .medium)  // 4pt
 
     private func make(_ kind: AnnotationKind) -> Annotation {
         Annotation(kind: kind, style: style)
@@ -14,9 +15,9 @@ struct AnnotationTests {
 
     @Test func rectangleHitsOnOutlineOnly() {
         let a = make(.rectangle(CGRect(x: 10, y: 10, width: 100, height: 60)))
-        #expect(a.hitTest(CGPoint(x: 10, y: 40)))       // left edge
-        #expect(a.hitTest(CGPoint(x: 60, y: 72)))       // just outside bottom edge, within reach
-        #expect(!a.hitTest(CGPoint(x: 60, y: 40)))      // middle
+        #expect(a.hitTest(CGPoint(x: 10, y: 40)))  // left edge
+        #expect(a.hitTest(CGPoint(x: 60, y: 72)))  // just outside bottom edge, within reach
+        #expect(!a.hitTest(CGPoint(x: 60, y: 40)))  // middle
         #expect(!a.hitTest(CGPoint(x: 200, y: 40)))
     }
 
@@ -34,7 +35,7 @@ struct AnnotationTests {
     @Test(arguments: [AnnotationKind.line(from: .zero, to: CGPoint(x: 100, y: 0)), .arrow(from: .zero, to: CGPoint(x: 100, y: 0))])
     func lineAndArrowHitNearSegment(kind: AnnotationKind) {
         let a = make(kind)
-        #expect(a.hitTest(CGPoint(x: 50, y: 7)))     // 6 tolerance + 2 half-width
+        #expect(a.hitTest(CGPoint(x: 50, y: 7)))  // 6 tolerance + 2 half-width
         #expect(!a.hitTest(CGPoint(x: 50, y: 9)))
     }
 
@@ -48,7 +49,7 @@ struct AnnotationTests {
         let points = [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0)]
         let probe = CGPoint(x: 50, y: 12)
         #expect(!make(.pen(points)).hitTest(probe))
-        #expect(make(.marker(points)).hitTest(probe))   // 16pt wide marker
+        #expect(make(.marker(points)).hitTest(probe))  // 16pt wide marker
     }
 
     @Test func textHitsWithinItsBounds() {

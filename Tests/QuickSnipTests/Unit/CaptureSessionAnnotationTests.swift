@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
@@ -95,7 +96,7 @@ struct CaptureSessionAnnotationTests {
         session.toggleTool(.text)
 
         session.mouseDown(on: 1, at: CGPoint(x: 50, y: 60))
-        session.mouseDown(on: 1, at: CGPoint(x: 190, y: 140))   // outside
+        session.mouseDown(on: 1, at: CGPoint(x: 190, y: 140))  // outside
 
         #expect(requests.count == 1)
         #expect(requests.first?.0 == 1)
@@ -115,7 +116,7 @@ struct CaptureSessionAnnotationTests {
     @Test func clickingAnAnnotationWithoutToolSelectsIt() {
         let session = makeSession()
         drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
-        session.toggleTool(.rectangle)   // off
+        session.toggleTool(.rectangle)  // off
 
         session.mouseDown(on: 1, at: CGPoint(x: 40, y: 50))
         session.mouseUp(on: 1, at: CGPoint(x: 40, y: 50))
@@ -242,7 +243,7 @@ struct CaptureSessionAnnotationTests {
         let annotated = try #require(session.renderedImage())
 
         #expect(plain.width == annotated.width)
-        #expect(TestImages.pixel(annotated, x: 40, y: 50).isClose(to: .red))   // left edge at 40pt → (40-20)*2
+        #expect(TestImages.pixel(annotated, x: 40, y: 50).isClose(to: .red))  // left edge at 40pt → (40-20)*2
         #expect(!TestImages.pixel(plain, x: 40, y: 50).isClose(to: .red))
     }
 

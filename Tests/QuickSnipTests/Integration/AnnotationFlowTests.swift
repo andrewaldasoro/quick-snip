@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
+
 @testable import QuickSnip
 
 /// Common annotation use cases end to end: hotkey → select → annotate (toolbar + mouse) →
@@ -96,7 +97,7 @@ struct AnnotationFlowTests {
 
         let image = try app.copied()
         #expect(app.pixel(image, atPoint: 100, 100).isClose(to: .blue))
-        #expect(app.pixel(image, atPoint: 152, 103).isClose(to: .blue))   // arrow head
+        #expect(app.pixel(image, atPoint: 152, 103).isClose(to: .blue))  // arrow head
     }
 
     @Test func hideSensitiveInfoWithPixelate() async throws {
@@ -164,7 +165,7 @@ struct AnnotationFlowTests {
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
         app.draw(.rectangle, from: CGPoint(x: 120, y: 40), to: CGPoint(x: 160, y: 80))
-        app.session.toggleTool(.rectangle)   // back to select/move
+        app.session.toggleTool(.rectangle)  // back to select/move
 
         // Drag the first rectangle down by 60pt.
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 120))
@@ -174,9 +175,9 @@ struct AnnotationFlowTests {
         app.overlay.send(.copy)
 
         let image = try app.copied()
-        #expect(app.pixel(image, atPoint: 40, 120).isClose(to: .red))                  // moved
-        #expect(app.pixel(image, atPoint: 40, 60) == original(atPoint: 40, 60))        // old spot clear
-        #expect(app.pixel(image, atPoint: 160, 60) == original(atPoint: 160, 60))      // deleted
+        #expect(app.pixel(image, atPoint: 40, 120).isClose(to: .red))  // moved
+        #expect(app.pixel(image, atPoint: 40, 60) == original(atPoint: 40, 60))  // old spot clear
+        #expect(app.pixel(image, atPoint: 160, 60) == original(atPoint: 160, 60))  // deleted
     }
 
     @Test func freehandPenAndMarkerThenSave() async throws {
@@ -197,7 +198,7 @@ struct AnnotationFlowTests {
         #expect(app.pixel(image, atPoint: 80, 60).isClose(to: .green))
         let marked = app.pixel(image, atPoint: 100, 150)
         #expect(marked != original(atPoint: 100, 150))
-        #expect(!marked.isClose(to: .yellow, tolerance: 10))   // translucent, not solid
+        #expect(!marked.isClose(to: .yellow, tolerance: 10))  // translucent, not solid
     }
 
     @Test func adjustSelectionAfterAnnotatingKeepsAnnotations() async throws {

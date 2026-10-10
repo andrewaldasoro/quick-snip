@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+
 @testable import QuickSnip
 
 struct RGBA: Equatable {
@@ -31,7 +32,10 @@ enum TestImages {
     static func solidImage(width: Int, height: Int, color: RGBA) -> CGImage {
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
         for i in stride(from: 0, to: bytes.count, by: 4) {
-            bytes[i] = color.r; bytes[i + 1] = color.g; bytes[i + 2] = color.b; bytes[i + 3] = color.a
+            bytes[i] = color.r
+            bytes[i + 1] = color.g
+            bytes[i + 2] = color.b
+            bytes[i + 3] = color.a
         }
         let context = CGContext(
             data: &bytes, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
@@ -42,7 +46,8 @@ enum TestImages {
 
     /// Pixel at (x, y), top-left origin.
     static func pixel(_ image: CGImage, x: Int, y: Int) -> RGBA {
-        let width = image.width, height = image.height
+        let width = image.width
+        let height = image.height
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
         let context = CGContext(
             data: &bytes, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
@@ -90,7 +95,9 @@ enum TestSessions {
 
     /// A drag with the current tool (or a move without one).
     @MainActor
-    static func drag(_ session: CaptureSession, on display: CGDirectDisplayID, from start: CGPoint, through points: [CGPoint] = [], to end: CGPoint) {
+    static func drag(
+        _ session: CaptureSession, on display: CGDirectDisplayID, from start: CGPoint, through points: [CGPoint] = [], to end: CGPoint
+    ) {
         session.mouseDown(on: display, at: start)
         for point in points { session.mouseDragged(on: display, to: point) }
         session.mouseDragged(on: display, to: end)

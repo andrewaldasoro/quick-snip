@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 ./scripts/bundle.sh >/dev/null
 APP="build/QuickSnip.app"
-BUNDLE_ID="${BUNDLE_ID:-dev.quicksnip.QuickSnip}"
+BUNDLE_ID="${BUNDLE_ID:-io.github.andrewaldasoro.quicksnip}"
 failures=0
 
 check() {
@@ -21,6 +21,7 @@ check "hardened runtime enabled" "grep -q 'runtime' <<<\"\$flags\""
 check "designated requirement survives rebuilds (no cdhash)" "! grep -q 'cdhash' <<<\"\$requirement\""
 check "designated requirement pins bundle ID" "grep -q 'identifier \"$BUNDLE_ID\"' <<<\"\$requirement\""
 check "KeyboardShortcuts resources bundled" "[ -d '$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle' ]"
+check "app icon bundled" "[ -f '$APP/Contents/Resources/AppIcon.icns' ]"
 check "executable is arm64" "lipo -archs '$APP/Contents/MacOS/QuickSnip' | grep -qx arm64"
 check "Info.plist placeholders filled" "! grep -q '\$(' '$APP/Contents/Info.plist'"
 

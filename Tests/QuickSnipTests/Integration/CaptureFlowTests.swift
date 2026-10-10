@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
+
 @testable import QuickSnip
 
 /// Most common use cases end to end: hotkey → permission check → freeze displays →
@@ -120,8 +121,8 @@ struct CaptureFlowTests {
         app.overlay.send(.copy)
 
         let image = try app.copiedImage()
-        #expect(image.width == 60)    // (60 - 30) pt × 2
-        #expect(image.height == 60)   // (45 - 15) pt × 2
+        #expect(image.width == 60)  // (60 - 30) pt × 2
+        #expect(image.height == 60)  // (45 - 15) pt × 2
         #expect(TestImages.pixel(image, x: 0, y: 0) == RGBA(r: 60, g: 30, b: 0, a: 255))
     }
 

@@ -25,6 +25,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         self.onCommand = onCommand
         frozenImage = NSImage(cgImage: display.image, size: display.frame.size)
         super.init(frame: display.localBounds)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Screenshot area selection")
+        setAccessibilityHelp("Drag to select an area. Return copies, Command-S saves, Escape cancels.")
     }
 
     @available(*, unavailable)
@@ -36,8 +40,43 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
+    // MARK: Cursor
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
+                owner: self
+            ))
+    }
+
+    /// Cursor for a point in this view; the toolbar always gets an arrow.
+    func cursor(at point: CGPoint) -> OverlayCursor {
+        if let toolbar, !toolbar.isHidden, toolbar.frame.contains(point) { return .arrow }
+        return session.cursor(on: display.displayID, at: point)
+    }
+
+    private func updateCursor(for event: NSEvent) {
+        cursor(at: localPoint(of: event)).nsCursor.set()
+    }
+
+    /// Sets the cursor for wherever the mouse is right now. Tracking areas only react to
+    /// movement, so a freshly shown overlay would keep the previous app's cursor until
+    /// the mouse moved.
+    func refreshCursor() {
+        guard let window else { return }
+        cursor(at: convert(window.mouseLocationOutsideOfEventStream, from: nil)).nsCursor.set()
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        updateCursor(for: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        updateCursor(for: event)
     }
 
     private var isActiveDisplay: Bool { session.activeDisplayID == display.displayID }
@@ -64,24 +103,25 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func makeToolbar() -> AnnotationToolbar {
-        let toolbar = AnnotationToolbar(actions: .init(
-            selectTool: { [weak self] tool in
-                self?.session.toggleTool(tool)
-                self?.restoreFocus()
-            },
-            selectColor: { [weak self] color in
-                self?.session.setColor(color)
-                self?.restoreFocus()
-            },
-            selectWidth: { [weak self] width in
-                self?.session.setWidth(width)
-                self?.restoreFocus()
-            },
-            command: { [weak self] command in
-                self?.onCommand(command)
-                self?.restoreFocus()
-            }
-        ))
+        let toolbar = AnnotationToolbar(
+            actions: .init(
+                selectTool: { [weak self] tool in
+                    self?.session.toggleTool(tool)
+                    self?.restoreFocus()
+                },
+                selectColor: { [weak self] color in
+                    self?.session.setColor(color)
+                    self?.restoreFocus()
+                },
+                selectWidth: { [weak self] width in
+                    self?.session.setWidth(width)
+                    self?.restoreFocus()
+                },
+                command: { [weak self] command in
+                    self?.onCommand(command)
+                    self?.restoreFocus()
+                }
+            ))
         addSubview(toolbar)
         self.toolbar = toolbar
         return toolbar
@@ -257,14 +297,17 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             return
         }
         session.mouseDown(on: display.displayID, at: localPoint(of: event))
+        updateCursor(for: event)
     }
 
     override func mouseDragged(with event: NSEvent) {
         session.mouseDragged(on: display.displayID, to: localPoint(of: event))
+        updateCursor(for: event)
     }
 
     override func mouseUp(with event: NSEvent) {
         session.mouseUp(on: display.displayID, at: localPoint(of: event))
+        updateCursor(for: event)
     }
 
     private func localPoint(of event: NSEvent) -> CGPoint {

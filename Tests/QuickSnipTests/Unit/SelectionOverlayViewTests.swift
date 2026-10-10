@@ -1,5 +1,6 @@
 import AppKit
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
@@ -7,7 +8,8 @@ struct SelectionOverlayViewTests {
     private let white = RGBA(r: 255, g: 255, b: 255, a: 255)
 
     private func makeView(onCommand: @escaping @MainActor (OverlayCommand) -> Void = { _ in })
-        -> (SelectionOverlayView, CaptureSession) {
+        -> (SelectionOverlayView, CaptureSession)
+    {
         let image = TestImages.solidImage(width: 100, height: 80, color: white)
         let display = CapturedDisplay(displayID: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), image: image)
         let session = CaptureSession(displays: [display])
@@ -65,10 +67,11 @@ struct SelectionOverlayViewTests {
     @Test func keyDownSendsCommand() throws {
         var received: [OverlayCommand] = []
         let (view, _) = makeView { received.append($0) }
-        let escape = try #require(NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
-            context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53
-        ))
+        let escape = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+                context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53
+            ))
         view.keyDown(with: escape)
         #expect(received == [.cancel])
     }
@@ -76,10 +79,11 @@ struct SelectionOverlayViewTests {
     @Test func keyEquivalentSendsCommandAndIsConsumed() throws {
         var received: [OverlayCommand] = []
         let (view, _) = makeView { received.append($0) }
-        let copy = try #require(NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
-            context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8
-        ))
+        let copy = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
+                context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8
+            ))
         #expect(view.performKeyEquivalent(with: copy))
         #expect(received == [.copy])
     }
@@ -87,10 +91,11 @@ struct SelectionOverlayViewTests {
     @Test func unrelatedKeyEquivalentIsNotConsumed() throws {
         var received: [OverlayCommand] = []
         let (view, _) = makeView { received.append($0) }
-        let other = try #require(NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
-            context: nil, characters: "a", charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0
-        ))
+        let other = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
+                context: nil, characters: "a", charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0
+            ))
         #expect(!view.performKeyEquivalent(with: other))
         #expect(received.isEmpty)
     }
@@ -99,7 +104,7 @@ struct SelectionOverlayViewTests {
 @MainActor
 @Suite(.serialized)
 struct SelectionOverlayViewEditingTests {
-    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 400, height: 300), scale: 1)
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 480, height: 300), scale: 1)
 
     private func makeView() -> (SelectionOverlayView, CaptureSession) {
         let session = CaptureSession(displays: [display])
@@ -198,10 +203,11 @@ struct SelectionOverlayViewEditingTests {
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
         view.beginTextEntry(at: CGPoint(x: 80, y: 90))
 
-        let copy = try #require(NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
-            context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8
-        ))
+        let copy = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0,
+                context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8
+            ))
         _ = view.performKeyEquivalent(with: copy)
         #expect(received.isEmpty)
     }
@@ -216,7 +222,38 @@ struct SelectionOverlayViewEditingTests {
         let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rep)
         let image = try #require(rep.cgImage)
-        let scale = image.width / 400
+        let scale = image.width / 480
         #expect(TestImages.pixel(image, x: 100 * scale, y: 100 * scale).isClose(to: .red, tolerance: 60))
+    }
+}
+
+@MainActor
+struct SelectionOverlayViewCursorTests {
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 800, height: 600), scale: 1)
+
+    @Test func toolbarAreaGetsArrowCursor() throws {
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        session.onChange = { view.sessionDidChange() }
+        TestSessions.select(session, on: 1, CGRect(x: 100, y: 100, width: 300, height: 200))
+
+        let toolbar = try #require(view.toolbar)
+        #expect(view.cursor(at: CGPoint(x: toolbar.frame.midX, y: toolbar.frame.midY)) == .arrow)
+        #expect(view.cursor(at: CGPoint(x: 250, y: 200)) == .openHand)
+    }
+
+    @Test func overlayIsAccessible() {
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        #expect(view.isAccessibilityElement())
+        #expect(view.accessibilityLabel() == "Screenshot area selection")
+        #expect(view.accessibilityHelp()?.contains("Escape cancels") == true)
+    }
+
+    @Test func tracksMouseMovementForCursorUpdates() {
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        view.updateTrackingAreas()
+        #expect(view.trackingAreas.contains { $0.options.contains(.mouseMoved) && $0.options.contains(.cursorUpdate) })
     }
 }

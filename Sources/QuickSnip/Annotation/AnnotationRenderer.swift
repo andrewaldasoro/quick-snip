@@ -68,7 +68,8 @@ enum AnnotationRenderer {
         let length = Geometry.distance(from, to)
         guard length > 0 else { return }
         let head = min(arrowHeadLength(for: width), length)
-        let ux = (to.x - from.x) / length, uy = (to.y - from.y) / length
+        let ux = (to.x - from.x) / length
+        let uy = (to.y - from.y) / length
         let base = CGPoint(x: to.x - ux * head, y: to.y - uy * head)
         let halfWidth = head * 0.45
 
@@ -93,7 +94,8 @@ enum AnnotationRenderer {
 
     private static func drawPixelated(_ rect: CGRect, in context: CGContext, display: CapturedDisplay, cache: PixelateCache) {
         guard let pixelRect = CropMath.pixelRect(for: rect, in: display),
-              let image = cache.image(for: display, pixelRect: pixelRect) else { return }
+            let image = cache.image(for: display, pixelRect: pixelRect)
+        else { return }
 
         let scaleX = display.pixelSize.width / display.frame.width
         let scaleY = display.pixelSize.height / display.frame.height

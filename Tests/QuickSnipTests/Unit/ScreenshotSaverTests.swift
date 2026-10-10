@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import QuickSnip
 
 struct ScreenshotSaverTests {
@@ -46,5 +47,25 @@ struct ScreenshotSaverTests {
 
     @Test func defaultDirectoryIsDesktop() {
         #expect(ScreenshotSaver.defaultDirectory.lastPathComponent == "Desktop")
+    }
+}
+
+struct ScreenshotSaverFormatTests {
+    private let date = Date(timeIntervalSince1970: 1_791_373_780)
+
+    @Test func jpegUsesJpgExtensionAndOwnCollisionSequence() throws {
+        let directory = TestImages.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var saver = ScreenshotSaver(directory: directory, now: { date }, timeZone: .gmt)
+        saver.format = .jpeg
+
+        let first = try saver.save(Data([1]))
+        let second = try saver.save(Data([2]))
+        #expect(first.lastPathComponent == "QuickSnip 2026-10-07 at 11.49.40.jpg")
+        #expect(second.lastPathComponent == "QuickSnip 2026-10-07 at 11.49.40 (2).jpg")
+    }
+
+    @Test func defaultFormatIsPNG() {
+        #expect(ScreenshotSaver(directory: URL(fileURLWithPath: "/tmp")).format == .png)
     }
 }

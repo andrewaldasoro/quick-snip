@@ -159,9 +159,11 @@ struct Annotation: Identifiable, Equatable, Sendable {
 
     @MainActor
     static func attributedText(_ string: String, style: AnnotationStyle) -> NSAttributedString {
-        NSAttributedString(string: string, attributes: [
-            .font: font(size: style.width.fontSize),
-            .foregroundColor: style.color.nsColor,
-        ])
+        NSAttributedString(
+            string: string,
+            attributes: [
+                .font: font(size: style.width.fontSize),
+                .foregroundColor: style.color.nsColor,
+            ])
     }
 }

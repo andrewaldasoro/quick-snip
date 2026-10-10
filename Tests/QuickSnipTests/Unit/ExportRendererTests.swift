@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
@@ -34,14 +35,14 @@ struct ExportRendererTests {
         let image = try render([Annotation(kind: .rectangle(CGRect(x: 20, y: 20, width: 20, height: 20)), style: .default)])
         #expect(image.width == 100)
         #expect(image.height == 80)
-        #expect(pixel(image, atPoint: 30, 30) == original(atPoint: 30, 30))   // inside the outline
-        #expect(pixel(image, atPoint: 12, 45) == original(atPoint: 12, 45))   // elsewhere
+        #expect(pixel(image, atPoint: 30, 30) == original(atPoint: 30, 30))  // inside the outline
+        #expect(pixel(image, atPoint: 12, 45) == original(atPoint: 12, 45))  // elsewhere
     }
 
     @Test func rectangleStrokeLandsOnItsEdgesInPixelSpace() throws {
         let image = try render([Annotation(kind: .rectangle(CGRect(x: 20, y: 20, width: 20, height: 20)), style: .default)])
-        #expect(pixel(image, atPoint: 20, 30).isClose(to: .red))     // left edge
-        #expect(pixel(image, atPoint: 30, 40).isClose(to: .red))     // bottom edge (top-left origin)
+        #expect(pixel(image, atPoint: 20, 30).isClose(to: .red))  // left edge
+        #expect(pixel(image, atPoint: 30, 40).isClose(to: .red))  // bottom edge (top-left origin)
         #expect(!pixel(image, atPoint: 30, 25).isClose(to: .red))
     }
 
@@ -58,14 +59,16 @@ struct ExportRendererTests {
     @Test func arrowHasAHeadWiderThanTheShaft() throws {
         let style = AnnotationStyle(color: .blue, width: .thin)
         let image = try render([Annotation(kind: .arrow(from: CGPoint(x: 15, y: 30), to: CGPoint(x: 55, y: 30)), style: style)])
-        #expect(pixel(image, atPoint: 30, 30).isClose(to: .blue))       // shaft
-        #expect(!pixel(image, atPoint: 30, 33).isClose(to: .blue))      // shaft is thin
-        #expect(pixel(image, atPoint: 47, 32).isClose(to: .blue))       // head is wide
+        #expect(pixel(image, atPoint: 30, 30).isClose(to: .blue))  // shaft
+        #expect(!pixel(image, atPoint: 30, 33).isClose(to: .blue))  // shaft is thin
+        #expect(pixel(image, atPoint: 47, 32).isClose(to: .blue))  // head is wide
     }
 
     @Test func penFollowsItsPoints() throws {
         let style = AnnotationStyle(color: .green, width: .medium)
-        let image = try render([Annotation(kind: .pen([CGPoint(x: 15, y: 15), CGPoint(x: 50, y: 15), CGPoint(x: 50, y: 45)]), style: style)])
+        let image = try render([
+            Annotation(kind: .pen([CGPoint(x: 15, y: 15), CGPoint(x: 50, y: 15), CGPoint(x: 50, y: 45)]), style: style)
+        ])
         #expect(pixel(image, atPoint: 30, 15).isClose(to: .green))
         #expect(pixel(image, atPoint: 50, 30).isClose(to: .green))
         #expect(!pixel(image, atPoint: 30, 30).isClose(to: .green))
@@ -75,14 +78,15 @@ struct ExportRendererTests {
         let style = AnnotationStyle(color: .yellow, width: .thin)
         let base = TestImages.solidImage(width: 200, height: 160, color: RGBA(r: 0, g: 0, b: 255, a: 255))
         let blue = CapturedDisplay(displayID: 1, frame: display.frame, image: base)
-        let image = try #require(ExportRenderer.render(
-            display: blue, selection: selection,
-            annotations: [Annotation(kind: .marker([CGPoint(x: 15, y: 30), CGPoint(x: 55, y: 30)]), style: style)],
-            cache: PixelateCache()
-        ))
+        let image = try #require(
+            ExportRenderer.render(
+                display: blue, selection: selection,
+                annotations: [Annotation(kind: .marker([CGPoint(x: 15, y: 30), CGPoint(x: 55, y: 30)]), style: style)],
+                cache: PixelateCache()
+            ))
         let mixed = pixel(image, atPoint: 30, 30)
-        #expect(mixed.r > 60 && mixed.r < 200)    // yellow over blue, partially
-        #expect(mixed.b > 60)                     // blue still shows through
+        #expect(mixed.r > 60 && mixed.r < 200)  // yellow over blue, partially
+        #expect(mixed.b > 60)  // blue still shows through
     }
 
     @Test func textIsDrawnUprightAtItsOrigin() throws {
@@ -92,13 +96,15 @@ struct ExportRendererTests {
             image: TestImages.solidImage(width: 200, height: 160, color: RGBA(r: 255, g: 255, b: 255, a: 255))
         )
         let annotation = Annotation(kind: .text("HI", origin: CGPoint(x: 15, y: 15)), style: style)
-        let image = try #require(ExportRenderer.render(display: white, selection: selection, annotations: [annotation], cache: PixelateCache()))
+        let image = try #require(
+            ExportRenderer.render(display: white, selection: selection, annotations: [annotation], cache: PixelateCache()))
 
         // Red ink inside the text bounds, none above them.
         let bounds = annotation.bounds
         var inkRows: [Int] = []
         for y in stride(from: bounds.minY, to: min(bounds.maxY, selection.maxY), by: 0.5) {
-            for x in stride(from: bounds.minX, to: bounds.maxX, by: 0.5) where pixel(image, atPoint: x, y).isClose(to: .red, tolerance: 80) {
+            for x in stride(from: bounds.minX, to: bounds.maxX, by: 0.5) where pixel(image, atPoint: x, y).isClose(to: .red, tolerance: 80)
+            {
                 inkRows.append(Int(y))
                 break
             }
@@ -112,7 +118,7 @@ struct ExportRendererTests {
         // Coordinate pixels differ every pixel; pixelated ones repeat within a block.
         #expect(pixel(image, atPoint: 20, 20) == pixel(image, atPoint: 20.5, 20))
         #expect(pixel(image, atPoint: 20, 20) != original(atPoint: 20.5, 20))
-        #expect(pixel(image, atPoint: 45, 45) == original(atPoint: 45, 45))   // outside untouched
+        #expect(pixel(image, atPoint: 45, 45) == original(atPoint: 45, 45))  // outside untouched
     }
 
     @Test func annotationsOutsideSelectionAreClipped() throws {

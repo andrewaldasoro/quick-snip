@@ -1,5 +1,6 @@
 import KeyboardShortcuts
 import Testing
+
 @testable import QuickSnip
 
 struct ShortcutsTests {

@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
@@ -11,7 +12,8 @@ struct AnnotationDocumentTests {
 
     @Test func addAppendsInOrder() {
         let doc = AnnotationDocument()
-        let a = rect(0), b = rect(20)
+        let a = rect(0)
+        let b = rect(20)
         doc.add(a)
         doc.add(b)
         #expect(doc.annotations == [a, b])
@@ -32,7 +34,8 @@ struct AnnotationDocumentTests {
 
     @Test func multipleUndoStepsAreSeparate() {
         let doc = AnnotationDocument()
-        let a = rect(0), b = rect(20)
+        let a = rect(0)
+        let b = rect(20)
         doc.add(a)
         doc.add(b)
         doc.undo()
@@ -73,7 +76,8 @@ struct AnnotationDocumentTests {
 
     @Test func removeIsUndoable() {
         let doc = AnnotationDocument()
-        let a = rect(0), b = rect(20)
+        let a = rect(0)
+        let b = rect(20)
         doc.add(a)
         doc.add(b)
         doc.remove(a.id)
@@ -102,7 +106,7 @@ struct AnnotationDocumentTests {
         doc.add(below)
         doc.add(above)
         #expect(doc.topmost(at: CGPoint(x: 20, y: 20))?.id == above.id)
-        #expect(doc.topmost(at: CGPoint(x: 2, y: 2))?.id == below.id)   // outside `above`'s 6pt tolerance
+        #expect(doc.topmost(at: CGPoint(x: 2, y: 2))?.id == below.id)  // outside `above`'s 6pt tolerance
         #expect(doc.topmost(at: CGPoint(x: 100, y: 100)) == nil)
     }
 

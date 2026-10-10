@@ -36,12 +36,15 @@ struct ScreenCaptureKitCapturer: DisplayCapturing {
     func captureAllDisplays() async throws -> [CapturedDisplay] {
         let screens = ScreenInfo.current()
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        // Keep QuickSnip's own windows (thumbnail, settings, onboarding) out of the capture.
+        let ownProcessID = ProcessInfo.processInfo.processIdentifier
+        let ownApps = content.applications.filter { $0.processID == ownProcessID }
 
         var captured: [CapturedDisplay] = []
         for screen in screens {
             guard let display = content.displays.first(where: { $0.displayID == screen.displayID }) else { continue }
 
-            let filter = SCContentFilter(display: display, excludingWindows: [])
+            let filter = SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: [])
             let configuration = SCStreamConfiguration()
             configuration.width = Int(screen.pixelSize.width)
             configuration.height = Int(screen.pixelSize.height)
