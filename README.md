@@ -1,0 +1,143 @@
+# QuickSnip
+
+A fast screenshot tool for macOS. Press a hotkey, the screen freezes, drag to select, annotate, then copy or save — all without leaving what you're doing.
+
+- Lives in the menu bar (the icon can be hidden)
+- Freezes every display first, so menus, tooltips and moving windows are captured as they were
+- Annotate with rectangles, arrows, lines, pen, marker, text and pixelate
+- Copies or saves at full Retina resolution
+- Native macOS look, keyboard-first
+
+Requires macOS 15 or later on Apple silicon.
+
+## Install
+
+Download the latest `QuickSnip.dmg` (or `.zip`) from [Releases](https://github.com/andrewaldasoro/quick-snip/releases) and drag **QuickSnip** to **Applications**.
+
+QuickSnip isn't notarized by Apple, so macOS blocks the first launch:
+
+1. Open QuickSnip once; macOS says it can't be verified. Click **Done**.
+2. Open **System Settings › Privacy & Security**, scroll down and click **Open Anyway** next to QuickSnip.
+
+Or, from Terminal:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/QuickSnip.app
+```
+
+### Screen Recording permission
+
+QuickSnip needs **Screen Recording** to capture the screen. On first launch it shows a welcome window:
+
+1. Click **Open System Settings** and turn on **QuickSnip** under **Screen & System Audio Recording**.
+2. Click **Quit & Reopen** — macOS only applies the permission after a relaunch.
+
+Images stay on your Mac unless you choose to share them.
+
+## How to use
+
+1. Press **⌘⇧2** (or choose **Capture Area** from the menu bar icon). Every display freezes.
+2. Drag to select an area. Drag the edges or corners to resize, drag inside to move it.
+3. Annotate with the toolbar or the keys below.
+4. Press **Return** to copy, **⌘S** to save, or **Esc** to cancel.
+
+After copying or saving, a thumbnail appears in the bottom-right corner for a few seconds. Click it to open the saved file.
+
+## Shortcut guide
+
+### Anywhere
+
+| Shortcut | Action |
+|---|---|
+| **⌘⇧2** | Capture area (change it in Settings) |
+
+### Menu bar menu
+
+| Shortcut | Action |
+|---|---|
+| **⌘,** | Settings… |
+| **⌘Q** | Quit QuickSnip |
+
+### While capturing
+
+| Shortcut | Action |
+|---|---|
+| **Return** / **Enter** / **⌘C** | Copy selection to the clipboard |
+| **⌘S** | Save selection to the save folder |
+| **Esc** | Cancel the capture |
+| **⌘Z** | Undo |
+| **⌘⇧Z** | Redo |
+| **Delete** | Delete the selected annotation (click one in move mode first) |
+
+### Tools
+
+Press a tool's key to pick it; press it again to go back to move mode (drag annotations around).
+
+| Key | Tool |
+|---|---|
+| **R** | Rectangle |
+| **A** | Arrow |
+| **L** | Line |
+| **P** | Pen |
+| **M** | Marker |
+| **T** | Text |
+| **X** | Pixelate |
+
+### Colors
+
+| Key | Color |
+|---|---|
+| **1** | Red |
+| **2** | Orange |
+| **3** | Yellow |
+| **4** | Green |
+| **5** | Blue |
+| **6** | Purple |
+| **7** | Black |
+| **8** | White |
+
+### Text tool
+
+| Action | Result |
+|---|---|
+| Click | Start typing at that point |
+| **Return** or click elsewhere | Place the text |
+| **Esc** | Discard the text |
+
+### Mouse
+
+| Action | Result |
+|---|---|
+| Drag an edge or corner of the selection | Resize the selection |
+| Drag inside the selection, tool picked | Draw with that tool (Text: click to type) |
+| Click or drag an annotation, no tool picked | Select it (for **Delete**) and move it |
+| Drag inside the selection, no tool picked | Move the selection |
+| Drag outside the selection, no tool picked | Start a new selection (only before you annotate, so drawings aren't lost) |
+
+## Settings
+
+Open **Settings…** from the menu bar icon, or open QuickSnip again from Finder or Spotlight (the only way back when the menu bar icon is hidden).
+
+- **Capture area** — record a new global shortcut
+- **Save to** — folder for saved screenshots (default: Desktop). Files are named `QuickSnip 2026-10-10 at 14.30.00.png`
+- **Format** — PNG or JPEG
+- **Show thumbnail after capture**
+- **Show menu bar icon**
+- **Launch at login**
+
+## Build from source
+
+Needs full Xcode 27 (the macOS 27 SDK) selected with `xcode-select`.
+
+```bash
+git clone git@github.com:andrewaldasoro/quick-snip.git
+cd quick-snip
+./scripts/run.sh          # build, bundle into build/QuickSnip.app, launch
+./scripts/check.sh        # format lint, warnings-as-errors build, tests, coverage
+```
+
+See [CLAUDE.md](CLAUDE.md) for architecture and contribution rules, and [plan.md](plan.md) for the roadmap.
+
+## License
+
+[MIT](LICENSE) © 2026 Andrew Aldasoro

@@ -10,8 +10,9 @@ GitHub Releases, no paid Apple Developer Program (decided 2026-10-10). So no Dev
 - [ ] `release.yml` (GitHub Actions) on tag `v*`: `check.sh --bundle` → bundle with `VERSION`/`BUILD` from the tag → zip + DMG → SHA-256 checksums → GitHub Release with notes
 - [ ] Build provenance: `actions/attest-build-provenance` on the artifacts (free trust signal replacing notarization); `gh attestation verify` documented
 - [ ] Sparkle updates: EdDSA keys (private key as CI secret), `appcast.xml` on GitHub Pages, enclosures point at release assets. Check the update keeps the TCC grant and isn't blocked by quarantine
-- [ ] README install section: download, move to Applications, first launch → System Settings › Privacy & Security › **Open Anyway** (macOS 15 dropped the right-click › Open bypass); or `xattr -dr com.apple.quarantine /Applications/QuickSnip.app`
-- [ ] README: features, screenshots, shortcuts, permissions explained, build from source
+- [x] README install section: download, move to Applications, first launch → System Settings › Privacy & Security › **Open Anyway** (macOS 15 dropped the right-click › Open bypass); or `xattr -dr com.apple.quarantine /Applications/QuickSnip.app`
+- [x] README: features, shortcut guide, permissions, settings, build from source
+- [ ] README screenshots / demo GIF
 - [ ] Landing page: GitHub Pages (same site as the appcast)
 
 ## Not doing (needs the paid program)
