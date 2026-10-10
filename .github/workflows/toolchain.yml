@@ -1,0 +1,35 @@
+name: Toolchain check
+
+# Dependabot doesn't track Xcode. Once a month, open an issue when GitHub ships a runner
+# image for a newer Xcode than the one CI uses.
+on:
+  schedule:
+    - cron: "0 7 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xcode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare CI's Xcode with the newest runner image
+        run: |
+          current=$(grep -oE 'runs-on: xcode-[0-9]+' .github/workflows/ci.yml | grep -oE '[0-9]+$')
+          latest=$(gh api repos/actions/runner-images/contents/images/macos --jq \
+            '[.[].name | capture("^xcode-(?<v>[0-9]+)-arm64-Readme.md$") | .v | tonumber] | max')
+          echo "CI uses Xcode $current; newest runner image is Xcode $latest"
+          [ "$latest" -gt "$current" ] || exit 0
+          title="Xcode $latest runner available"
+          if [ -z "$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[].number')" ]; then
+            gh issue create --title "$title" --body "GitHub now has an \`xcode-$latest\` runner image. Update \`runs-on\` and \`DEVELOPER_DIR\` in the workflows, bump \`swift-tools-version\` if needed, and run \`./scripts/check.sh --bundle\` locally with Xcode $latest."
+          fi
