@@ -20,6 +20,7 @@
 - [x] Accessibility labels: toolbar (with shortcuts), overlay (label + help), thumbnail, settings controls
 - [x] Keyboard shortcuts for tools (R A L P M T X, press again to turn off) and colors (1–8); shown in tooltips
 - [x] App icon (original artwork, `scripts/make-icon.swift` → `Support/AppIcon.icns`)
+- [x] Shortcut recorder records on the first click (KeyboardShortcuts 3.1: macOS 26+ editing restart)
 - [x] Crosshair shows as soon as the screen freezes (forced activation + cursor refresh)
 - [x] Settings window: sized to content, raised and focused (`NSWindow.hosting`, `bringToFront`, `SystemAppActivation`)
 - [x] `run.sh` waits for the previous instance and retries `open` (fixed -600 on quick relaunch)

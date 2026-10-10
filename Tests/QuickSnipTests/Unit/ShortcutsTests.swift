@@ -5,13 +5,13 @@ import Testing
 
 struct ShortcutsTests {
     @Test func captureAreaDefaultIsCommandShift2() {
-        let shortcut = KeyboardShortcuts.Name.captureArea.defaultShortcut
+        let shortcut = KeyboardShortcuts.Name.captureArea.initialShortcut
         #expect(shortcut == .init(.two, modifiers: [.command, .shift]))
     }
 
     @Test(arguments: [KeyboardShortcuts.Key.three, .four, .five, .six])
     func captureAreaDefaultAvoidsSystemScreenshotShortcuts(systemKey: KeyboardShortcuts.Key) {
         let systemShortcut = KeyboardShortcuts.Shortcut(systemKey, modifiers: [.command, .shift])
-        #expect(KeyboardShortcuts.Name.captureArea.defaultShortcut != systemShortcut)
+        #expect(KeyboardShortcuts.Name.captureArea.initialShortcut != systemShortcut)
     }
 }
