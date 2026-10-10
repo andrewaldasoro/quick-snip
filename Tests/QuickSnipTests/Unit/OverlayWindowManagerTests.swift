@@ -1,5 +1,6 @@
 import AppKit
 import Testing
+
 @testable import QuickSnip
 
 @MainActor
@@ -11,7 +12,7 @@ struct OverlayWindowManagerTests {
     ]
 
     @Test func presentsOnePanelPerDisplay() {
-        let manager = OverlayWindowManager()
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
         manager.present(CaptureSession(displays: displays)) { _ in }
         defer { manager.dismiss() }
 
@@ -20,7 +21,7 @@ struct OverlayWindowManagerTests {
     }
 
     @Test func panelsFloatAboveEverythingOnAllSpaces() throws {
-        let manager = OverlayWindowManager()
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
         manager.present(CaptureSession(displays: displays)) { _ in }
         defer { manager.dismiss() }
 
@@ -33,7 +34,7 @@ struct OverlayWindowManagerTests {
     }
 
     @Test func eachPanelHostsItsDisplaysOverlay() {
-        let manager = OverlayWindowManager()
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
         manager.present(CaptureSession(displays: displays)) { _ in }
         defer { manager.dismiss() }
 
@@ -42,14 +43,14 @@ struct OverlayWindowManagerTests {
     }
 
     @Test func dismissRemovesAllPanels() {
-        let manager = OverlayWindowManager()
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
         manager.present(CaptureSession(displays: displays)) { _ in }
         manager.dismiss()
         #expect(manager.panels.isEmpty)
     }
 
     @Test func presentingAgainReplacesPanels() {
-        let manager = OverlayWindowManager()
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
         manager.present(CaptureSession(displays: displays)) { _ in }
         manager.present(CaptureSession(displays: [displays[0]])) { _ in }
         defer { manager.dismiss() }
@@ -57,14 +58,49 @@ struct OverlayWindowManagerTests {
     }
 
     @Test func selectionChangesRedrawAllPanels() {
-        let manager = OverlayWindowManager()
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
         let session = CaptureSession(displays: displays)
         manager.present(session) { _ in }
         defer { manager.dismiss() }
 
-        manager.panels.forEach { $0.contentView?.needsDisplay = false }
+        for panel in manager.panels { panel.contentView?.needsDisplay = false }
         session.mouseDown(on: 1, at: CGPoint(x: 5, y: 5))
 
         #expect(manager.panels.allSatisfy { $0.contentView?.needsDisplay == true })
+    }
+
+    /// Regression: the cursor stayed an arrow on the frozen screen. A background app
+    /// can't change the cursor, and the plain activation request was declined.
+    @Test func presentingActivatesTheApp() {
+        let activation = SpyAppActivation()
+        let manager = OverlayWindowManager(activation: activation)
+        manager.present(CaptureSession(displays: displays)) { _ in }
+        defer { manager.dismiss() }
+
+        #expect(activation.activateCount == 1)
+    }
+
+    /// Regression: the crosshair only appeared after the mouse moved.
+    @Test func overlayShowsCrosshairWithoutWaitingForMouseMovement() throws {
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
+        manager.present(CaptureSession(displays: displays)) { _ in }
+        defer { manager.dismiss() }
+        let view = try #require(manager.overlayViews.first)
+        NSCursor.arrow.set()
+
+        view.refreshCursor()
+
+        #expect(NSCursor.current == NSCursor.crosshair)
+    }
+
+    @Test func becomingActiveRefreshesTheCursorOnlyWhilePresenting() {
+        let manager = OverlayWindowManager(activation: SpyAppActivation())
+        manager.present(CaptureSession(displays: displays)) { _ in }
+        manager.dismiss()
+        NSCursor.arrow.set()
+
+        NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+
+        #expect(NSCursor.current == NSCursor.arrow)
     }
 }

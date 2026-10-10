@@ -11,25 +11,48 @@ final class OverlayPanel: NSPanel {
 final class OverlayWindowManager: OverlayPresenting {
     static let windowLevel = NSWindow.Level.screenSaver
 
+    private let activation: any AppActivating
     private(set) var panels: [OverlayPanel] = []
+    private var activationObserver: (any NSObjectProtocol)?
+
+    init(activation: any AppActivating = SystemAppActivation()) {
+        self.activation = activation
+    }
 
     func present(_ session: CaptureSession, onCommand: @escaping @MainActor (OverlayCommand) -> Void) {
         dismiss()
         panels = session.displays.map { makePanel(for: $0, session: session, onCommand: onCommand) }
         session.onChange = { [weak self] in
-            self?.overlayViews.forEach { $0.sessionDidChange() }
+            for view in self?.overlayViews ?? [] { view.sessionDidChange() }
         }
         session.onRequestTextEntry = { [weak self] displayID, point in
             self?.overlayViews.first { $0.display.displayID == displayID }?.beginTextEntry(at: point)
         }
 
-        NSApp.activate()
-        panels.forEach { $0.orderFrontRegardless() }
+        // Only the active app may change the cursor, so the crosshair needs QuickSnip active.
+        activation.activate()
+        for panel in panels { panel.orderFrontRegardless() }
 
         let mouse = NSEvent.mouseLocation
         let keyPanel = panels.first { $0.frame.contains(mouse) } ?? panels.first
         keyPanel?.makeKey()
         keyPanel?.makeFirstResponder(keyPanel?.contentView)
+        refreshCursor()
+        // Activation completes asynchronously; set the cursor again once it has.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Posted on the main queue (see `queue:` above).
+            MainActor.assumeIsolated { self?.refreshCursor() }
+        }
+    }
+
+    /// Sets the cursor for the overlay under the mouse.
+    func refreshCursor() {
+        let mouse = NSEvent.mouseLocation
+        overlayViews.first { $0.window?.frame.contains(mouse) ?? false }?.refreshCursor()
     }
 
     var overlayViews: [SelectionOverlayView] {
@@ -37,7 +60,11 @@ final class OverlayWindowManager: OverlayPresenting {
     }
 
     func dismiss() {
-        panels.forEach { $0.orderOut(nil) }
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+            self.activationObserver = nil
+        }
+        for panel in panels { panel.orderOut(nil) }
         panels.removeAll()
     }
 
@@ -61,6 +88,7 @@ final class OverlayWindowManager: OverlayPresenting {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
+        panel.acceptsMouseMovedEvents = true
 
         let view = SelectionOverlayView(display: display, session: session, onCommand: onCommand)
         panel.contentView = view
