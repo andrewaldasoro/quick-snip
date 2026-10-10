@@ -30,7 +30,7 @@
 
 ## Deferred
 
-- "Open in editor" (optional) → Phase 5 candidate
+- "Open in editor" (optional) → Phase 6 candidate
 - Tool keyboard shortcuts → Phase 3 (already listed)
 
 ## Done when

@@ -1,6 +1,6 @@
 # quick-snip — Plan
 
-Screenshot tool for macOS. Menu bar app → global hotkey → frozen full-screen overlay → select area → annotate → copy / save (upload later).
+Screenshot tool for macOS. Menu bar app → global hotkey → frozen full-screen overlay → select area → annotate → copy / save / upload (share link).
 
 Original name, icon and assets.
 
@@ -19,7 +19,8 @@ Original name, icon and assets.
 | Undo | `UndoManager` |
 | Login item | `SMAppService` |
 | OCR (later) | Vision `VNRecognizeTextRequest` |
-| Distribution | Developer ID + notarization + Sparkle. Mac App Store optional later |
+| Distribution | GitHub Releases (zip + DMG), ad-hoc/self-signed, Sparkle. No paid Apple program → no notarization |
+| CI / security | GitHub Actions (`check.sh --bundle`), Dependabot auto-upgrades, CodeQL, OSV-Scanner, gitleaks |
 
 ## Key design decisions
 
@@ -37,8 +38,10 @@ Original name, icon and assets.
 | 1 | Capture & select | 3–5 days | [plans/phase-1-capture.md](plans/phase-1-capture.md) |
 | 2 | Annotation | 1–2 weeks | [plans/phase-2-annotation.md](plans/phase-2-annotation.md) |
 | 3 | Polish | 1 week | [plans/phase-3-polish.md](plans/phase-3-polish.md) |
-| 4 | Distribution | 2–3 days | [plans/phase-4-distribution.md](plans/phase-4-distribution.md) |
-| 5 | Extras (post-v1) | — | [plans/phase-5-extras.md](plans/phase-5-extras.md) |
+| 4 | Upload & share link | 1–2 weeks | [plans/phase-4-upload.md](plans/phase-4-upload.md) |
+| 5 | Distribution | 2–3 days | [plans/phase-5-distribution.md](plans/phase-5-distribution.md) |
+| 6 | Extras (post-v1) | — | [plans/phase-6-extras.md](plans/phase-6-extras.md) |
+| — | Security & maintenance (ongoing, before Phase 5) | 1–2 days setup | [plans/security-and-maintenance.md](plans/security-and-maintenance.md) |
 
 ## Testing
 
@@ -49,4 +52,7 @@ Mandatory rules in [CLAUDE.md](CLAUDE.md#testing-rules-mandatory): unit suite pe
 
 ## Open decisions
 
-- [ ] **Upload + share link in v1?** Decides whether a backend is needed. Current default: **local-only v1** (clipboard + files); upload deferred to Phase 5. If added: Cloudflare R2 or S3 + tiny API, not a full service.
+- [x] **Upload + share link in v1?** Yes (2026-10-10) → Phase 4. Backend choices listed there.
+- [x] **Bundle ID.** `io.github.andrewaldasoro.quicksnip`.
+- [x] **Signing / distribution.** Free: GitHub Releases, no Developer ID (users click Open Anyway once). See Phase 5.
+- [x] **Repo hosting.** GitHub: `git@github.com:andrewaldasoro/quick-snip.git` (remote `origin`, bookmark `main`).

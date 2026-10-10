@@ -2,19 +2,33 @@
 
 ## Tasks
 
-- [ ] Settings:
-  - [ ] Default save folder
-  - [ ] Image format (PNG / JPEG)
-  - [ ] Hotkey recorder
-  - [ ] Launch at login (`SMAppService`)
-  - [ ] Show floating thumbnail after capture (toggle)
-- [ ] Floating post-capture thumbnail
-- [ ] Multi-display + mixed DPI hardening
-- [ ] Full-screen apps and Spaces: overlay appears over them correctly
-- [ ] Accessibility labels on toolbar/settings
-- [ ] Keyboard shortcuts for tools
-- [ ] App icon (original)
-- [ ] Manual test pass: multi-monitor, mixed-scale setup
+- [x] Settings (`AppSettings`, persisted in UserDefaults; `SettingsView`):
+  - [x] Default save folder (Choose… panel, `~`-abbreviated path)
+  - [x] Image format (PNG / JPEG 90%)
+  - [x] Hotkey recorder
+  - [x] Optional menu bar icon (`MenuBarExtra(isInserted:)`); reopening the app shows Settings (`SettingsWindowController`)
+  - [x] Launch at login (`SMAppService`, errors shown inline — `LaunchAtLoginModel`)
+  - [x] Show floating thumbnail after capture (toggle, default on)
+- [x] Native-style toolbar: Liquid Glass panel, borderless glyph buttons, color swatches, accent Copy button
+- [x] Floating post-capture thumbnail: bottom-right, 5 s, click opens saved file, close button (`ThumbnailPanelController`, `ThumbnailLayout`)
+- [x] Retina DPI metadata (72 × scale) in copied and saved images (`ImageEncoder`) — from Phase 1
+- [x] Per-region cursors: resize per handle, open/closed hand, I-beam for text, arrow over toolbar (`OverlayCursor`) — from Phase 1
+- [x] Multi-display hardening:
+  - [x] QuickSnip's own windows (thumbnail, settings, onboarding) excluded from captures
+  - [x] Display added/removed/rearranged mid-capture → capture cancelled cleanly
+- [x] Full-screen apps and Spaces: panels use `.canJoinAllSpaces` + `.fullScreenAuxiliary` at `.screenSaver` level (manual check below)
+- [x] Accessibility labels: toolbar (with shortcuts), overlay (label + help), thumbnail, settings controls
+- [x] Keyboard shortcuts for tools (R A L P M T X, press again to turn off) and colors (1–8); shown in tooltips
+- [x] App icon (original artwork, `scripts/make-icon.swift` → `Support/AppIcon.icns`)
+- [x] Crosshair shows as soon as the screen freezes (forced activation + cursor refresh)
+- [x] Settings window: sized to content, raised and focused (`NSWindow.hosting`, `bringToFront`, `SystemAppActivation`)
+- [x] `run.sh` waits for the previous instance and retries `open` (fixed -600 on quick relaunch)
+- [ ] Manual test pass:
+  - [x] Different resolutions / scales (2026-10-10)
+  - [ ] Multi-monitor mixed scale at once
+  - [ ] Full-screen app
+  - [ ] Spaces
+  - [ ] Launch at login
 
 ## Done when
 

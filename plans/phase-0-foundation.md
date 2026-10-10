@@ -14,7 +14,7 @@ Build setup: Swift Package (no .xcodeproj) + `scripts/bundle.sh` wraps the binar
 - [x] Onboarding window: explains permission, opens System Settings, polls state, Quit & Reopen
 - [x] Test target (Swift Testing)
 - [x] Manual check: hotkey logs, permission grant + relaunch
-- [ ] Decide bundle ID (placeholder `dev.quicksnip.QuickSnip`)
+- [x] Bundle ID: `io.github.andrewaldasoro.quicksnip` (GitHub namespace, owned)
 - [ ] Apple Development signing identity (ad-hoc signing may reset Screen Recording permission each rebuild)
 
 ## Done when
@@ -27,5 +27,5 @@ Build setup: Swift Package (no .xcodeproj) + `scripts/bundle.sh` wraps the binar
 
 ```
 ./scripts/run.sh
-/usr/bin/log stream --predicate 'subsystem == "dev.quicksnip.QuickSnip"'
+/usr/bin/log stream --predicate 'subsystem == "io.github.andrewaldasoro.quicksnip"'
 ```
