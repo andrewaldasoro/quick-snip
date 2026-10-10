@@ -25,6 +25,15 @@ swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o
 - Use `/usr/bin/log`. In zsh, a bare `log` runs a shell builtin instead.
 - Version control is Jujutsu colocated with git (`.jj/`). Prefer `jj` commands.
 
+## CI, dependencies and security
+
+- `.github/workflows/ci.yml` runs `./scripts/check.sh --bundle` on the `xcode-27` runner for every push to `main` and every PR. The `check` job is the required status check on `main`.
+- `security.yml`: gitleaks (secrets, whole history), OSV-Scanner (`Package.resolved` vulnerabilities, fails the build), CodeQL (Swift + workflows). Also runs weekly.
+- Dependabot (`.github/dependabot.yml`) sends **one** weekly PR covering every ecosystem (Swift packages, GitHub Actions). Reviewer comes from `CODEOWNERS` (`reviewers:` was removed from dependabot.yml). `dependabot-auto-merge.yml` auto-merges it when CI passes, unless it contains a major update (labelled `needs-review`).
+- `toolchain.yml` opens an issue monthly when a newer Xcode runner image exists; bump `runs-on`/`DEVELOPER_DIR` by hand.
+- Pin every third-party action to a full commit SHA with the version in a comment; give each workflow `permissions: contents: read` and widen per job only.
+- `test-bundle.sh` fails on runtime-weakening entitlements and App Transport Security exceptions. Never log file paths or user content with `privacy: .public` (`LogPrivacyTests`).
+
 ## Build setup
 
 - This is a Swift Package with no `.xcodeproj`. `scripts/bundle.sh` creates the `.app`: it copies the binary and the SPM resource bundles (KeyboardShortcuts needs its bundle in `Contents/Resources`), fills the `$(BUNDLE_ID)`/`$(VERSION)`/`$(BUILD)` placeholders in `Support/Info.plist`, and codesigns with the hardened runtime. Env overrides: `CONFIG`, `BUNDLE_ID`, `VERSION`, `BUILD`, `SIGN_IDENTITY`.
