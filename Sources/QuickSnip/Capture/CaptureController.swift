@@ -119,7 +119,7 @@ final class CaptureController {
                     return .failed
                 }
                 let url = try saver.save(data)
-                logger.info("Saved \(url.path, privacy: .public)")
+                logger.info("Saved \(url.path, privacy: .private)")
                 finish()
                 showThumbnail(output, fileURL: url)
                 return .saved(url)
