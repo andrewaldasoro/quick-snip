@@ -27,7 +27,7 @@ xattr -dr com.apple.quarantine /Applications/QuickSnip.app
 
 ### Verify the download (optional)
 
-Every release is built by GitHub Actions from this repository, with SHA-256 checksums and a signed build-provenance attestation:
+Every release is built by GitHub Actions from this repository, with SHA-256 checksums, a signed build-provenance attestation, and a software bill of materials (`QuickSnip.sbom.cdx.json`, CycloneDX) listing every dependency:
 
 ```bash
 gh attestation verify QuickSnip.dmg --repo andrewaldasoro/quick-snip   # built from this repo by its release workflow
@@ -65,7 +65,9 @@ After copying or saving, a thumbnail appears in the bottom-right corner for a fe
 | Shortcut | Action |
 |---|---|
 | **⌘,** | Settings… |
+| | About QuickSnip (version, open-source notices) |
 | | Keyboard Shortcuts… (this guide, with your current capture hotkey) |
+| | Check for Updates… |
 | **⌘Q** | Quit QuickSnip |
 
 ### While capturing
@@ -137,6 +139,20 @@ Open **Settings…** from the menu bar icon, or open QuickSnip again from Finder
 - **Launch at login**
 - **Check for updates automatically** — QuickSnip asks before its first automatic check. Updates are signed, and the check sends nothing about you or your Mac
 
+## Uninstall
+
+1. In **Settings**, turn off **Launch at login**, then quit QuickSnip.
+2. Move **QuickSnip** from **Applications** to the Trash.
+3. Optionally remove its settings, update cache and Screen Recording entry:
+
+```bash
+defaults delete io.github.andrewaldasoro.quicksnip
+rm -rf ~/Library/Caches/io.github.andrewaldasoro.quicksnip ~/Library/HTTPStorages/io.github.andrewaldasoro.quicksnip
+tccutil reset ScreenCapture io.github.andrewaldasoro.quicksnip
+```
+
+Your saved screenshots stay where they are.
+
 ## Build from source
 
 Needs full Xcode 27 (the macOS 27 SDK) selected with `xcode-select`.
@@ -150,6 +166,12 @@ cd quick-snip
 
 See [CLAUDE.md](CLAUDE.md) for architecture and contribution rules, and [plan.md](plan.md) for the roadmap.
 
+## Changes
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 [MIT](LICENSE) © 2026 Andrew Aldasoro
+
+QuickSnip is built with [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) and [Sparkle](https://github.com/sparkle-project/Sparkle), both MIT licensed. Their notices ship inside the app: **About QuickSnip** in the menu.

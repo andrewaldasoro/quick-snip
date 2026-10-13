@@ -29,6 +29,8 @@ cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 for bundle in "$BIN_DIR"/*.bundle; do
     [ -e "$bundle" ] && cp -R "$bundle" "$APP/Contents/Resources/"
 done
+# Third-party license notices (MIT requires shipping them); the About panel shows Credits.html.
+python3 scripts/dependencies.py credits "$APP/Contents/Resources/Credits.html"
 
 # Sparkle (updates). ditto keeps the framework's symlinks. The XPC services are only for
 # sandboxed apps and the headers only for building, so they're dropped.

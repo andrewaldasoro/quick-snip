@@ -21,6 +21,12 @@ private struct MenuContent: View {
     let appDelegate: AppDelegate
 
     var body: some View {
+        Button("About QuickSnip") {
+            appDelegate.showAbout()
+        }
+
+        Divider()
+
         Button("Capture Area") {
             appDelegate.captureRequested()
         }

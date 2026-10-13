@@ -19,6 +19,7 @@ swift test --filter CaptureCoordinatorTests/captureWithPermissionStartsCapture  
 ./scripts/test-bundle.sh                         # integration checks on the built .app (signing, requirement, resources)
 VERSION=1.2.3 ./scripts/package.sh               # release build → dist/QuickSnip.zip, .dmg, SHA256SUMS
 VERSION=1.2.3 ./scripts/test-package.sh          # package, then check the artifacts (signature, version, DMG layout, checksums)
+./scripts/release-notes.sh 1.2.3                 # print a version's CHANGELOG.md section (the release notes)
 VERSION=1.2.3 ./scripts/make-appcast.sh          # add the release to the signed Sparkle appcast → dist/site/ (key: SPARKLE_PRIVATE_KEY or Keychain)
 swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o Support/AppIcon.icns   # regenerate icon
 /usr/bin/log stream --predicate 'subsystem == "io.github.andrewaldasoro.quicksnip"'   # app logs
@@ -33,9 +34,12 @@ swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o
 - `.github/workflows/ci.yml` runs `./scripts/check.sh --bundle` on the `xcode-27` runner for every push to `main` and every PR. The `check` job is the required status check on `main`.
 - `security.yml`: gitleaks (secrets, whole history), OSV-Scanner (`Package.resolved` vulnerabilities, fails the build), CodeQL (Swift + workflows). Also runs weekly.
 - Dependabot (`.github/dependabot.yml`) sends **one** weekly PR covering every ecosystem (Swift packages, GitHub Actions). Reviewer comes from `CODEOWNERS` (`reviewers:` was removed from dependabot.yml). `dependabot-auto-merge.yml` auto-merges it when CI passes, unless it contains a major update (labelled `needs-review`).
-- `release.yml` runs on a `v*` tag: quality gate → `test-package.sh` (VERSION from the tag, BUILD = run number) → `make-appcast.sh` → build-provenance attestation → GitHub Release with the DMG, zip and checksums → GitHub Pages deploy of `site/` + `appcast.xml` (the `github-pages` environment allows `main` and `v*` tags). Asset names have no version, so `releases/latest/download/QuickSnip.dmg` stays valid. `ci.yml` runs the same packaging as a dry run on every PR.
+- Releases: SemVer. Add user-facing changes to `CHANGELOG.md` under **Unreleased** as they land; before tagging `vX.Y.Z`, rename it to `## [X.Y.Z] - date` (the release fails without that section).
+- `release.yml` runs on a `v*` tag: release notes from `CHANGELOG.md` → quality gate → `test-package.sh` (VERSION from the tag, BUILD = run number) → `make-appcast.sh` → build-provenance attestation → GitHub Release with the DMG, zip, SBOM and checksums → GitHub Pages deploy of `site/` + `appcast.xml` (the `github-pages` environment allows `main` and `v*` tags). Asset names have no version, so `releases/latest/download/QuickSnip.dmg` stays valid. `ci.yml` runs the same packaging as a dry run on every PR.
 - `toolchain.yml` opens an issue monthly when a newer Xcode runner image exists; bump `runs-on`/`DEVELOPER_DIR` by hand.
 - Pin every third-party action to a full commit SHA with the version in a comment; give each workflow `permissions: contents: read` and widen per job only.
+- `scripts/dependencies.py` reads `Package.resolved`: `credits` writes the third-party notices into the app (`Credits.html`, shown by the About panel; `bundle.sh` runs it), `sbom` writes the release's CycloneDX SBOM (`package.sh` runs it). It needs `.build/checkouts` (any build resolves them).
+- Local only: no networking outside `Updates/` (Sparkle). `NetworkUsageTests` enforces it.
 - `test-bundle.sh` fails on runtime-weakening entitlements and App Transport Security exceptions. Never log file paths or user content with `privacy: .public` (`LogPrivacyTests`).
 
 ## Build setup

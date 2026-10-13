@@ -15,7 +15,7 @@ Build setup: Swift Package (no .xcodeproj) + `scripts/bundle.sh` wraps the binar
 - [x] Test target (Swift Testing)
 - [x] Manual check: hotkey logs, permission grant + relaunch
 - [x] Bundle ID: `io.github.andrewaldasoro.quicksnip` (GitHub namespace, owned)
-- [ ] Apple Development signing identity (ad-hoc signing may reset Screen Recording permission each rebuild)
+- [x] ~~Apple Development signing identity~~ Not needed: ad-hoc signing with an `identifier` designated requirement keeps the Screen Recording grant across rebuilds (`bundle.sh`, guarded by `test-bundle.sh`)
 
 ## Done when
 

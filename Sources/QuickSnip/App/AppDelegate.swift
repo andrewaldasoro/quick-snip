@@ -64,6 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cheatsheetWindow.show()
     }
 
+    /// The standard About panel: version, copyright, and the bundle's Credits.html
+    /// (third-party license notices, written by `bundle.sh`).
+    func showAbout() {
+        SystemAppActivation().activate()
+        NSApp.orderFrontStandardAboutPanel(nil)
+    }
+
     /// From the menu bar "Capture Area" item.
     func captureRequested() {
         Task {

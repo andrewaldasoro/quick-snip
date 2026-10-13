@@ -45,6 +45,16 @@ launches() {
     kill "$pid"
 }
 check "app launches (frameworks load)" launches
+# MIT requires shipping each dependency's notice; the About panel shows Credits.html.
+credits_cover_pins() {
+    python3 - "$APP/Contents/Resources/Credits.html" <<'PY'
+import json, sys
+names = [p["location"].rstrip("/").split("/")[-1].removesuffix(".git") for p in json.load(open("Package.resolved"))["pins"]]
+page = open(sys.argv[1]).read()
+sys.exit(not names or any(name not in page for name in names) or "Permission is hereby granted" not in page)
+PY
+}
+check "license notices for every dependency" credits_cover_pins
 check "Info.plist placeholders filled" "! grep -q '\$(' '$APP/Contents/Info.plist'"
 
 exit "$failures"
