@@ -5,60 +5,40 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+/// The same artwork as the website logo (`site/index.html`): a 64-unit blue rounded square
+/// with four white corner brackets. Keep the two in sync.
 func render(size: Int) -> CGImage {
-    let s = CGFloat(size) / 1024
     let space = CGColorSpace(name: CGColorSpace.sRGB)!
     let ctx = CGContext(
         data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
         space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     )!
-    ctx.scaleBy(x: s, y: s)
+    ctx.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
 
-    // macOS icon grid: 824pt rounded square centered in 1024.
-    let tile = CGRect(x: 100, y: 100, width: 824, height: 824)
-    let tilePath = CGPath(roundedRect: tile, cornerWidth: 185, cornerHeight: 185, transform: nil)
-    ctx.saveGState()
-    ctx.addPath(tilePath)
-    ctx.clip()
-    let gradient = CGGradient(
-        colorsSpace: space,
-        colors: [
-            CGColor(srgbRed: 0.42, green: 0.24, blue: 0.94, alpha: 1),
-            CGColor(srgbRed: 0.18, green: 0.50, blue: 1.00, alpha: 1),
-        ] as CFArray, locations: [0, 1])!
-    ctx.drawLinearGradient(gradient, start: CGPoint(x: 512, y: 100), end: CGPoint(x: 512, y: 924), options: [])
+    // macOS icon grid: the artwork fills the 824pt tile centered in 1024. Flipped so the
+    // 64-unit coordinates match the SVG (top-left origin).
+    let unit: CGFloat = 824 / 64
+    ctx.translateBy(x: 100, y: 924)
+    ctx.scaleBy(x: unit, y: -unit)
 
-    // The "snipped" region: a lighter panel.
-    let snip = CGRect(x: 292, y: 292, width: 440, height: 440)
-    ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.18))
-    ctx.fill(snip)
-    ctx.restoreGState()
+    ctx.setFillColor(CGColor(srgbRed: 10 / 255, green: 132 / 255, blue: 1, alpha: 1))  // #0a84ff
+    ctx.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: 64, height: 64), cornerWidth: 14, cornerHeight: 14, transform: nil))
+    ctx.fillPath()
 
-    // Corner brackets around the snip.
+    // M18 26v-8h8  M46 26v-8h-8  M18 38v8h8  M46 38v8h-8
+    let brackets: [[CGPoint]] = [
+        [CGPoint(x: 18, y: 26), CGPoint(x: 18, y: 18), CGPoint(x: 26, y: 18)],
+        [CGPoint(x: 46, y: 26), CGPoint(x: 46, y: 18), CGPoint(x: 38, y: 18)],
+        [CGPoint(x: 18, y: 38), CGPoint(x: 18, y: 46), CGPoint(x: 26, y: 46)],
+        [CGPoint(x: 46, y: 38), CGPoint(x: 46, y: 46), CGPoint(x: 38, y: 46)],
+    ]
+    for bracket in brackets {
+        ctx.addLines(between: bracket)
+    }
     ctx.setStrokeColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
-    ctx.setLineWidth(52)
+    ctx.setLineWidth(5)
     ctx.setLineCap(.round)
     ctx.setLineJoin(.round)
-    let arm: CGFloat = 130
-    let corners: [(CGPoint, CGFloat, CGFloat)] = [
-        (CGPoint(x: snip.minX, y: snip.minY), 1, 1),
-        (CGPoint(x: snip.maxX, y: snip.minY), -1, 1),
-        (CGPoint(x: snip.minX, y: snip.maxY), 1, -1),
-        (CGPoint(x: snip.maxX, y: snip.maxY), -1, -1),
-    ]
-    for (corner, dx, dy) in corners {
-        ctx.move(to: CGPoint(x: corner.x + dx * arm, y: corner.y))
-        ctx.addLine(to: corner)
-        ctx.addLine(to: CGPoint(x: corner.x, y: corner.y + dy * arm))
-    }
-    ctx.strokePath()
-
-    // Crosshair in the middle.
-    ctx.setLineWidth(30)
-    ctx.move(to: CGPoint(x: 512, y: 452))
-    ctx.addLine(to: CGPoint(x: 512, y: 572))
-    ctx.move(to: CGPoint(x: 452, y: 512))
-    ctx.addLine(to: CGPoint(x: 572, y: 512))
     ctx.strokePath()
 
     return ctx.makeImage()!
