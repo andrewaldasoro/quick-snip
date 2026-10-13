@@ -33,7 +33,10 @@ Repo: `github.com/andrewaldasoro/quick-snip`. Scanners (gitleaks, OSV-Scanner) r
   - Designated requirement is the one release signing expects (identifier, or our self-signed cert) — revisit with Phase 4 signing
   - Entitlements allow-list: fail on `get-task-allow` (release), `disable-library-validation`, `allow-unsigned-executable-memory`, `allow-jit`
   - `Info.plist`: no ATS exceptions
-- [ ] **Release checks** (Phase 4 `release.yml`): `codesign --verify --strict` on the shipped app, SHA-256 checksums + build-provenance attestation published, Sparkle EdDSA signature verified before the appcast is published
+- [ ] **Release checks** (Phase 4 `release.yml`):
+  - [x] `codesign --verify --strict --deep` on the app inside the zip and the DMG (`test-package.sh`)
+  - [x] SHA-256 checksums + build-provenance attestation published
+  - [ ] Sparkle EdDSA signature verified before the appcast is published
 
 ## 4. Manual audit checklist (each release + quarterly)
 

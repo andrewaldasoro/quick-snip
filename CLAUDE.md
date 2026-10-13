@@ -17,6 +17,8 @@ swift test --filter CaptureCoordinatorTests/captureWithPermissionStartsCapture  
 ./scripts/bundle.sh                              # build + wrap into signed build/QuickSnip.app
 ./scripts/run.sh                                 # bundle, kill running instance, relaunch
 ./scripts/test-bundle.sh                         # integration checks on the built .app (signing, requirement, resources)
+VERSION=1.2.3 ./scripts/package.sh               # release build → dist/QuickSnip.zip, .dmg, SHA256SUMS
+VERSION=1.2.3 ./scripts/test-package.sh          # package, then check the artifacts (signature, version, DMG layout, checksums)
 swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o Support/AppIcon.icns   # regenerate icon
 /usr/bin/log stream --predicate 'subsystem == "io.github.andrewaldasoro.quicksnip"'   # app logs
 ```
@@ -30,6 +32,7 @@ swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o
 - `.github/workflows/ci.yml` runs `./scripts/check.sh --bundle` on the `xcode-27` runner for every push to `main` and every PR. The `check` job is the required status check on `main`.
 - `security.yml`: gitleaks (secrets, whole history), OSV-Scanner (`Package.resolved` vulnerabilities, fails the build), CodeQL (Swift + workflows). Also runs weekly.
 - Dependabot (`.github/dependabot.yml`) sends **one** weekly PR covering every ecosystem (Swift packages, GitHub Actions). Reviewer comes from `CODEOWNERS` (`reviewers:` was removed from dependabot.yml). `dependabot-auto-merge.yml` auto-merges it when CI passes, unless it contains a major update (labelled `needs-review`).
+- `release.yml` runs on a `v*` tag: quality gate → `test-package.sh` (VERSION from the tag, BUILD = run number) → build-provenance attestation → GitHub Release with the DMG, zip and checksums. Asset names have no version, so `releases/latest/download/QuickSnip.dmg` stays valid. `ci.yml` runs the same packaging as a dry run on every PR.
 - `toolchain.yml` opens an issue monthly when a newer Xcode runner image exists; bump `runs-on`/`DEVELOPER_DIR` by hand.
 - Pin every third-party action to a full commit SHA with the version in a comment; give each workflow `permissions: contents: read` and widen per job only.
 - `test-bundle.sh` fails on runtime-weakening entitlements and App Transport Security exceptions. Never log file paths or user content with `privacy: .public` (`LogPrivacyTests`).

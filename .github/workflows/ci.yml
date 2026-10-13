@@ -33,3 +33,9 @@ jobs:
 
       - name: Quality gate
         run: ./scripts/check.sh --bundle
+
+      # Same packaging as release.yml, so a broken release is caught before tagging.
+      - name: Package (dry run)
+        env:
+          VERSION: 0.0.0
+        run: ./scripts/test-package.sh

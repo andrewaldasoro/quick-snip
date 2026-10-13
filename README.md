@@ -12,7 +12,7 @@ Requires macOS 15 or later on Apple silicon.
 
 ## Install
 
-Download the latest `QuickSnip.dmg` (or `.zip`) from [Releases](https://github.com/andrewaldasoro/quick-snip/releases) and drag **QuickSnip** to **Applications**.
+Download [**QuickSnip.dmg**](https://github.com/andrewaldasoro/quick-snip/releases/latest/download/QuickSnip.dmg) (or the `.zip` from [Releases](https://github.com/andrewaldasoro/quick-snip/releases)), open it and drag **QuickSnip** to **Applications**.
 
 QuickSnip isn't notarized by Apple, so macOS blocks the first launch:
 
@@ -23,6 +23,15 @@ Or, from Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/QuickSnip.app
+```
+
+### Verify the download (optional)
+
+Every release is built by GitHub Actions from this repository, with SHA-256 checksums and a signed build-provenance attestation:
+
+```bash
+gh attestation verify QuickSnip.dmg --repo andrewaldasoro/quick-snip   # built from this repo by its release workflow
+shasum -a 256 -c SHA256SUMS --ignore-missing                          # matches the published checksum
 ```
 
 ### Screen Recording permission
