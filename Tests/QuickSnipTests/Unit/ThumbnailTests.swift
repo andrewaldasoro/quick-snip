@@ -89,12 +89,17 @@ struct ThumbnailPanelControllerTests {
         #expect(controller.fileURL == file)
     }
 
+    /// Regression: this used a 50 ms timer and a 300 ms real sleep, which flaked on slow CI runners.
     @Test func dismissesItselfAfterDuration() async throws {
-        let controller = ThumbnailPanelController(urlOpener: SpyURLOpener(), displayDuration: .milliseconds(50))
+        let waited = SleepRecorder()
+        let controller = ThumbnailPanelController(urlOpener: SpyURLOpener(), sleep: { await waited.record($0) })
         controller.show(image, pointSize: CGSize(width: 240, height: 160), fileURL: nil)
         #expect(controller.panel != nil)
-        try await Task.sleep(for: .milliseconds(300))
+
+        await try #require(controller.dismissTask).value
+
         #expect(controller.panel == nil)
+        #expect(await waited.durations == [ThumbnailPanelController.displayDuration])
     }
 
     @Test func thumbnailIsAccessible() throws {

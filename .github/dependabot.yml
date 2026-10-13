@@ -10,18 +10,16 @@ multi-ecosystem-groups:
       day: "monday"
     labels: ["dependencies"]
     assignees: ["andrewaldasoro"]
+    commit-message:
+      prefix: "⬆️ Upgrade >"
 
 updates:
   - package-ecosystem: "swift"
     directory: "/"
     patterns: ["*"]
     multi-ecosystem-group: "all"
-    commit-message:
-      prefix: "⬆️ Upgrade >"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     patterns: ["*"]
     multi-ecosystem-group: "all"
-    commit-message:
-      prefix: "⬆️ Upgrade >"
