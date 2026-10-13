@@ -4,6 +4,7 @@ import OSLog
 
 enum OverlayCommand: Hashable, Sendable {
     case copy
+    case readText
     case save
     case cancel
     case undo
@@ -31,27 +32,38 @@ final class CaptureController {
         case failed
         case edited
         case ignored
+        case recognizing
     }
+
+    static let recognizingNotice = "Reading text…"
+    static let noTextNotice = "No text found"
+    static let recognitionFailedNotice = "Couldn’t read the text"
 
     private let logger = Logger(subsystem: Log.subsystem, category: "capture")
     private let capturer: any DisplayCapturing
     private let presenter: any OverlayPresenting
-    private let pasteboard: any ImagePasteboard
+    private let pasteboard: any ClipboardWriting
     private let saver: ScreenshotSaver
     private let settings: AppSettings?
     private let thumbnails: (any ThumbnailPresenting)?
+    private let textRecognizer: any TextRecognizing
+    private let recognizedText: (any RecognizedTextPresenting)?
 
     private(set) var session: CaptureSession?
+    /// Text recognition for Read Text, while it runs.
+    private(set) var recognitionTask: Task<Void, Never>?
     private var isCapturing = false
 
     /// `settings` overrides the saver's directory and format at save time.
     init(
         capturer: any DisplayCapturing,
         presenter: any OverlayPresenting,
-        pasteboard: any ImagePasteboard,
+        pasteboard: any ClipboardWriting,
         saver: ScreenshotSaver,
         settings: AppSettings? = nil,
-        thumbnails: (any ThumbnailPresenting)? = nil
+        thumbnails: (any ThumbnailPresenting)? = nil,
+        textRecognizer: any TextRecognizing = FallbackTextRecognizer.vision,
+        recognizedText: (any RecognizedTextPresenting)? = nil
     ) {
         self.capturer = capturer
         self.presenter = presenter
@@ -59,6 +71,8 @@ final class CaptureController {
         self.saver = saver
         self.settings = settings
         self.thumbnails = thumbnails
+        self.textRecognizer = textRecognizer
+        self.recognizedText = recognizedText
     }
 
     var isActive: Bool { session != nil || isCapturing }
@@ -94,6 +108,9 @@ final class CaptureController {
 
     @discardableResult
     func handle(_ command: OverlayCommand) -> Outcome {
+        // A notice answers the last action; the next one replaces it (unless text is still being read).
+        if recognitionTask == nil { session?.clearNotice() }
+
         switch command {
         case .cancel:
             // Esc closes the cheatsheet first, so checking a shortcut doesn't throw the capture away.
@@ -112,6 +129,9 @@ final class CaptureController {
             finish()
             showThumbnail(output, fileURL: nil)
             return .copied
+
+        case .readText:
+            return recognizeText()
 
         case .save:
             guard let output = renderOutput() else { return .noSelection }
@@ -164,6 +184,44 @@ final class CaptureController {
         }
     }
 
+    /// Reads the text in the selection off the main thread, then closes the capture and shows the text.
+    /// It reads the rendered image, annotations included, so text the user pixelated stays private.
+    private func recognizeText() -> Outcome {
+        guard recognitionTask == nil else { return .ignored }
+        guard let session, let image = session.renderedImage() else { return .noSelection }
+        session.showNotice(Self.recognizingNotice)
+        let recognizer = textRecognizer
+        recognitionTask = Task { [weak self] in
+            let text: String?
+            do {
+                text = try await recognizer.recognizeText(in: image)
+            } catch {
+                self?.logger.error("Text recognition failed: \(error.localizedDescription, privacy: .public)")
+                text = nil
+            }
+            guard !Task.isCancelled else { return }
+            self?.finishRecognition(text, in: session)
+        }
+        return .recognizing
+    }
+
+    private func finishRecognition(_ text: String?, in recognized: CaptureSession) {
+        recognitionTask = nil
+        guard recognized === session else { return }
+        guard let text else {
+            recognized.showNotice(Self.recognitionFailedNotice)
+            return
+        }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            recognized.showNotice(Self.noTextNotice)
+            return
+        }
+        // Nothing goes to the clipboard yet: the window lets the user copy all of it, part of
+        // it, or none.
+        finish()
+        recognizedText?.show(text)
+    }
+
     private struct Output {
         let image: CGImage
         let scale: CGFloat
@@ -181,6 +239,8 @@ final class CaptureController {
     }
 
     private func finish() {
+        recognitionTask?.cancel()
+        recognitionTask = nil
         presenter.dismiss()
         session = nil
     }

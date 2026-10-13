@@ -171,6 +171,20 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         drawBorder(selection)
         drawHandles(selection)
         drawSizeLabel(selection)
+        if isActiveDisplay, let notice = session.notice {
+            drawNotice(notice, over: selection)
+        }
+    }
+
+    private func drawNotice(_ notice: String, over selection: CGRect) {
+        let text = NSAttributedString(
+            string: notice,
+            attributes: [.font: NSFont.systemFont(ofSize: NoticeLabel.fontSize, weight: .medium), .foregroundColor: NSColor.white]
+        )
+        let frame = NoticeLabel.frame(textSize: text.size(), selection: selection, bounds: bounds)
+        NSColor.black.withAlphaComponent(0.75).setFill()
+        NSBezierPath(roundedRect: frame, xRadius: NoticeLabel.cornerRadius, yRadius: NoticeLabel.cornerRadius).fill()
+        text.draw(at: CGPoint(x: frame.minX + NoticeLabel.padding.width, y: frame.minY + NoticeLabel.padding.height))
     }
 
     private func drawAnnotations(clippedTo selection: CGRect) {

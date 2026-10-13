@@ -14,6 +14,7 @@ enum OverlayKeyMap {
         KeyBinding(.character("c"), .command, .copy),
         KeyBinding(.code(returnKey, name: "Return"), .copy),
         KeyBinding(.code(enterKey, name: "Enter"), .copy),
+        KeyBinding(.character("c"), [.command, .shift], .readText),
         KeyBinding(.character("s"), .command, .save),
         KeyBinding(.code(escape, name: "Esc"), .cancel),
         KeyBinding(.character("z"), .command, .undo),

@@ -4,7 +4,7 @@ import AppKit
 /// a glass panel, borderless glyph buttons, round color swatches, and one prominent
 /// primary action (Copy).
 ///
-/// Top row: cancel | tools | undo, redo | save, Copy. Bottom row: colors | stroke width.
+/// Top row: cancel | tools | undo, redo | save, Copy. Bottom row: colors | stroke width | read text.
 /// Every choice is an inline button: pop-up menus would open below the overlay's level.
 final class AnnotationToolbar: NSView {
     struct Actions {
@@ -14,7 +14,7 @@ final class AnnotationToolbar: NSView {
         var command: @MainActor (OverlayCommand) -> Void
     }
 
-    static let commands: [OverlayCommand] = [.undo, .redo, .cancel, .save, .copy]
+    static let commands: [OverlayCommand] = [.undo, .redo, .cancel, .readText, .save, .copy]
     static let buttonSize = NSSize(width: 28, height: 28)
     static let swatchSize: CGFloat = 22
     static let cornerRadius: CGFloat = 14
@@ -143,7 +143,8 @@ final class AnnotationToolbar: NSView {
         }
 
         // Line the swatches up under the tools, past the cancel button.
-        let row = row(groups: [colors, widths])
+        // Read Text sits here: the top row is already as wide as small displays allow.
+        let row = row(groups: [colors, widths, [makeCommandButton(.readText)]])
         row.edgeInsets.left = Self.buttonSize.width + Self.groupSpacing * 2 + ToolbarDivider.width
         return row
     }
@@ -237,6 +238,7 @@ final class AnnotationToolbar: NSView {
         case .cancel: "xmark"
         case .save: "square.and.arrow.down"
         case .copy: "doc.on.doc"
+        case .readText: "text.viewfinder"
         case .deleteAnnotation: "trash"
         case .toggleCheatsheet: "questionmark.circle"
         case .selectTool(let tool): symbol(for: tool)
@@ -251,6 +253,7 @@ final class AnnotationToolbar: NSView {
         case .cancel: withShortcut("Cancel", for: command)
         case .save: withShortcut("Save", for: command)
         case .copy: withShortcut("Copy", for: command)
+        case .readText: withShortcut("Read Text", for: command)
         case .deleteAnnotation: withShortcut("Delete", for: command)
         case .toggleCheatsheet: withShortcut("Keyboard Shortcuts", for: command)
         case .selectTool(let tool): label(for: tool)

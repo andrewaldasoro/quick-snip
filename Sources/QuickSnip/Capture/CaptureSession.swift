@@ -22,6 +22,8 @@ final class CaptureSession {
     private(set) var selectedAnnotationID: UUID?
     /// The shortcut cheatsheet (**?**) is drawn over the overlay.
     private(set) var isShowingCheatsheet = false
+    /// A short status message drawn over the selection ("No text found").
+    private(set) var notice: String?
 
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
@@ -96,6 +98,7 @@ final class CaptureSession {
 
     func mouseDown(on id: CGDirectDisplayID, at point: CGPoint) {
         guard editors[id] != nil else { return }
+        notice = nil
         // The cheatsheet covers the selection, so a click only closes it.
         if isShowingCheatsheet {
             hideCheatsheet()
@@ -217,6 +220,17 @@ final class CaptureSession {
         guard let id = selectedAnnotationID, document.annotation(id) != nil else { return false }
         document.remove(id)
         return true
+    }
+
+    func showNotice(_ text: String) {
+        notice = text
+        notify()
+    }
+
+    func clearNotice() {
+        guard notice != nil else { return }
+        notice = nil
+        notify()
     }
 
     func toggleCheatsheet() {
