@@ -33,7 +33,7 @@ Repo: `github.com/andrewaldasoro/quick-snip`. Scanners (gitleaks, OSV-Scanner) r
   - Designated requirement is the one release signing expects (identifier, or our self-signed cert) — revisit with Phase 4 signing
   - Entitlements allow-list: fail on `get-task-allow` (release), `disable-library-validation`, `allow-unsigned-executable-memory`, `allow-jit`
   - `Info.plist`: no ATS exceptions
-- [ ] **Release checks** (Phase 4 `release.yml`):
+- [x] **Release checks** (Phase 4 `release.yml`):
   - [x] `codesign --verify --strict --deep` on the app inside the zip and the DMG (`test-package.sh`)
   - [x] SHA-256 checksums + build-provenance attestation published
   - [x] Sparkle EdDSA signatures (feed + archive) verified before the appcast is published (`make-appcast.sh`)
@@ -42,13 +42,13 @@ Repo: `github.com/andrewaldasoro/quick-snip`. Scanners (gitleaks, OSV-Scanner) r
 
 - [x] Data handling (2026-10-10): captures only go to the clipboard or the user-chosen folder; no temp files; saved path was logged `.public` → fixed, guarded by `LogPrivacyTests`
 - [x] Permissions (2026-10-10): only Screen Recording requested; onboarding copy matches what the app does
-- [ ] Network: the only request is Sparkle's update check (HTTPS appcast); TLS only, no ATS exceptions. Captures never leave the Mac
+- [x] Network (2026-10-13): the only requests are Sparkle's (HTTPS appcast on GitHub Pages, update archives from GitHub Releases); app code and KeyboardShortcuts make none. TLS only, no ATS exceptions, no network entitlements. Captures never leave the Mac. Guarded by `NetworkUsageTests` (network APIs only under `Updates/`)
 - [x] Update channel (2026-10-13): Sparkle private key only in the login Keychain and the CI secret, appcast over HTTPS, signed feed required. Key rotation:
   - Before any release (done once on 2026-10-13 after the key was printed to a log): delete the Keychain item, `generate_keys --account quicksnip`, update `SUPublicEDKey`, re-set the secret
   - After releases: ship one update signed with the old key that carries the new `SUPublicEDKey`, then switch. If the old key is lost, users must reinstall from Releases once
   - Keep an offline backup of the key (`generate_keys --account quicksnip -x`), never in the repo
-- [ ] Dependencies: review new transitive packages and licenses; drop unused ones
-- [ ] Generate an SBOM per release (CycloneDX from `Package.resolved`), attach to the GitHub release
+- [x] Dependencies (2026-10-13): KeyboardShortcuts 3.1.0 (MIT) and Sparkle 2.10.0 (MIT; bundles BSD/zlib-licensed bsdiff, ed25519 and others, all permissive). No transitive packages; both used. Notices ship in the app (`Credits.html`). Repeat when Dependabot adds a package
+- [x] SBOM per release: `scripts/dependencies.py sbom` → `QuickSnip.sbom.cdx.json` (CycloneDX 1.6 from `Package.resolved`), checked by `test-package.sh`, covered by the checksums and provenance attestation, attached to the GitHub release
 
 ## 5. Policy
 

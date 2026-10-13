@@ -17,7 +17,20 @@ work="$(mktemp -d)"
 mount="$work/mount"
 trap 'hdiutil detach "$mount" -quiet 2>/dev/null || true; rm -rf "$work"' EXIT
 
+# The SBOM lists every pinned dependency at its pinned version, for this release.
+sbom_matches_pins() {
+    python3 - "$DIST/QuickSnip.sbom.cdx.json" "$VERSION" <<'PY'
+import json, sys
+bom = json.load(open(sys.argv[1]))
+pins = {p["location"].rstrip("/").split("/")[-1].removesuffix(".git"): p["state"].get("version")
+        for p in json.load(open("Package.resolved"))["pins"]}
+listed = {c["name"]: c["version"] for c in bom["components"]}
+sys.exit(bom["bomFormat"] != "CycloneDX" or bom["metadata"]["component"]["version"] != sys.argv[2] or listed != pins)
+PY
+}
+
 check "checksums match" "(cd '$DIST' && shasum -a 256 -c SHA256SUMS >/dev/null)"
+check "SBOM covers every dependency" sbom_matches_pins
 
 ditto -x -k "$DIST/QuickSnip.zip" "$work/zip"
 zipped="$work/zip/QuickSnip.app"

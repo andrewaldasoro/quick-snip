@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release build → dist/QuickSnip.zip, dist/QuickSnip.dmg and dist/SHA256SUMS.
+# Release build → dist/QuickSnip.zip, dist/QuickSnip.dmg, dist/QuickSnip.sbom.cdx.json (CycloneDX) and dist/SHA256SUMS.
 # File names carry no version, so https://github.com/andrewaldasoro/quick-snip/releases/latest/download/QuickSnip.dmg
 # always points at the newest release.
 #
@@ -41,6 +41,8 @@ for attempt in 1 2 3; do
     sleep 5
 done
 
-(cd "$DIST" && shasum -a 256 QuickSnip.zip QuickSnip.dmg > SHA256SUMS)
+python3 scripts/dependencies.py sbom "$VERSION" "$DIST/QuickSnip.sbom.cdx.json"
+
+(cd "$DIST" && shasum -a 256 QuickSnip.zip QuickSnip.dmg QuickSnip.sbom.cdx.json > SHA256SUMS)
 
 echo "Packaged QuickSnip $VERSION ($BUILD) in $DIST/"

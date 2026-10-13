@@ -4,7 +4,7 @@ GitHub Releases, no paid Apple Developer Program (decided 2026-10-10). So no Dev
 
 ## Tasks
 
-- [ ] Release signing: keep ad-hoc + `identifier` requirement, or a free self-signed code-signing certificate (CI secret) so the designated requirement pins our cert, not just the ID (stronger: another app can't claim our Screen Recording grant by reusing the ID). Decide and test that the grant survives an update
+- [x] Release signing: **ad-hoc** + `identifier` designated requirement (decided 2026-10-13). A self-signed certificate would only stop another app from claiming our Screen Recording grant by reusing the bundle ID; it adds a cert to manage and doesn't remove the Open Anyway step. Revisit if that threat matters. The grant surviving an update is checked with the first two releases (below)
 - [x] Hardened runtime on (already in `bundle.sh`)
 - [x] Package: zipped `.app` (`ditto -c -k --keepParent`) + DMG with Applications link (`scripts/package.sh`, checked by `scripts/test-package.sh`; dry run in CI on every PR)
 - [x] `release.yml` (GitHub Actions) on tag `v*`: `check.sh --bundle` → bundle with `VERSION`/`BUILD` from the tag → zip + DMG → SHA-256 checksums → GitHub Release with notes
@@ -13,6 +13,9 @@ GitHub Releases, no paid Apple Developer Program (decided 2026-10-10). So no Dev
   - [ ] After the first two releases: an update from the older one installs, keeps the Screen Recording grant, and isn't blocked by quarantine
 - [x] README install section: download, move to Applications, first launch → System Settings › Privacy & Security › **Open Anyway** (macOS 15 dropped the right-click › Open bypass); or `xattr -dr com.apple.quarantine /Applications/QuickSnip.app`
 - [x] README: features, shortcut guide, permissions, settings, build from source
+- [x] Third-party notices: `scripts/dependencies.py credits` writes `Credits.html` into the app (About panel, **About QuickSnip** menu item); `test-bundle.sh` fails if a dependency's notice is missing
+- [x] Versioning: SemVer + `CHANGELOG.md` (Keep a Changelog); `release.yml` publishes the version's section as the release notes and fails if it's missing (`scripts/release-notes.sh`)
+- [x] README: uninstall steps (login item, app, preferences, caches, Screen Recording entry)
 - [ ] README screenshots / demo GIF
 - [x] Landing page: GitHub Pages (same site as the appcast, `site/index.html`)
 

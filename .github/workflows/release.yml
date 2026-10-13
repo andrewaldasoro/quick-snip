@@ -34,6 +34,10 @@ jobs:
         # package.sh rejects anything that isn't x.y.z.
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
+      - name: Release notes
+        # Fails fast when CHANGELOG.md has no section for this version.
+        run: ./scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+
       - name: Quality gate
         run: ./scripts/check.sh --bundle
 
@@ -57,13 +61,15 @@ jobs:
           subject-path: |
             dist/QuickSnip.zip
             dist/QuickSnip.dmg
+            dist/QuickSnip.sbom.cdx.json
 
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/QuickSnip.dmg dist/QuickSnip.zip dist/SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "QuickSnip $VERSION"
+          gh release create "$GITHUB_REF_NAME" \
+            dist/QuickSnip.dmg dist/QuickSnip.zip dist/QuickSnip.sbom.cdx.json dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --notes-file "$RUNNER_TEMP/notes.md" --title "QuickSnip $VERSION"
 
   # After the release, so the appcast never points at assets that don't exist yet.
   pages:
