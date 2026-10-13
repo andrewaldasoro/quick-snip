@@ -97,11 +97,11 @@ struct OverlayKeyMapToolTests {
         ] as [(String, AnnotationTool)])
     func letterPicksTool(key: String, tool: AnnotationTool) {
         #expect(command(key) == .selectTool(tool))
-        #expect(OverlayKeyMap.toolKey(for: tool) == key)
+        #expect(OverlayKeyMap.keys(for: .selectTool(tool)) == [key.uppercased()])
     }
 
     @Test func everyToolHasAUniqueKey() {
-        let keys = AnnotationTool.allCases.map(OverlayKeyMap.toolKey(for:))
+        let keys = AnnotationTool.allCases.flatMap { OverlayKeyMap.keys(for: .selectTool($0)) }
         #expect(Set(keys).count == AnnotationTool.allCases.count)
     }
 
@@ -116,5 +116,43 @@ struct OverlayKeyMapToolTests {
     @Test func modifiedLettersDoNotPickTools() {
         #expect(command("r", .command) == nil)
         #expect(command("a", .option) == nil)
+    }
+}
+
+struct OverlayKeyMapCheatsheetTests {
+    private func command(_ chars: String, _ modifiers: NSEvent.ModifierFlags = []) -> OverlayCommand? {
+        OverlayKeyMap.command(keyCode: 44, modifiers: modifiers, charactersIgnoringModifiers: chars)
+    }
+
+    @Test func questionMarkTogglesCheatsheet() {
+        // US layout: Shift-/; on some layouts "?" needs no Shift.
+        #expect(command("?", .shift) == .toggleCheatsheet)
+        #expect(command("?") == .toggleCheatsheet)
+    }
+
+    @Test func commandQuestionMarkDoesNothing() {
+        #expect(command("?", [.command, .shift]) == nil)
+    }
+
+    @Test func slashWithoutShiftDoesNothing() {
+        #expect(command("/") == nil)
+    }
+
+    @Test func keysListEveryBindingOfACommandInOrder() {
+        #expect(OverlayKeyMap.keys(for: .copy) == ["⌘C", "Return", "Enter"])
+        #expect(OverlayKeyMap.keys(for: .redo) == ["⇧⌘Z"])
+        #expect(OverlayKeyMap.keys(for: .toggleCheatsheet) == ["?"])
+    }
+
+    @Test(
+        arguments: [OverlayCommand.copy, .save, .cancel, .undo, .redo, .deleteAnnotation, .toggleCheatsheet]
+            + AnnotationTool.allCases.map(OverlayCommand.selectTool) + AnnotationColor.allCases.map(OverlayCommand.selectColor))
+    func everyCommandHasAKey(command: OverlayCommand) {
+        #expect(!OverlayKeyMap.keys(for: command).isEmpty)
+    }
+
+    @Test func noTwoBindingsShareAKey() {
+        let keys = OverlayKeyMap.bindings.map(\.displayText)
+        #expect(Set(keys).count == keys.count)
     }
 }

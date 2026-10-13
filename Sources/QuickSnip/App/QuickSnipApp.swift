@@ -32,6 +32,10 @@ private struct MenuContent: View {
         }
         .keyboardShortcut(",")
 
+        Button("Keyboard Shortcuts…") {
+            appDelegate.showCheatsheet()
+        }
+
         Button("Quit QuickSnip") {
             NSApp.terminate(nil)
         }

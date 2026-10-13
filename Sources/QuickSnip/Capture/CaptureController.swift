@@ -11,6 +11,7 @@ enum OverlayCommand: Hashable, Sendable {
     case deleteAnnotation
     case selectTool(AnnotationTool)
     case selectColor(AnnotationColor)
+    case toggleCheatsheet
 }
 
 @MainActor
@@ -95,6 +96,11 @@ final class CaptureController {
     func handle(_ command: OverlayCommand) -> Outcome {
         switch command {
         case .cancel:
+            // Esc closes the cheatsheet first, so checking a shortcut doesn't throw the capture away.
+            if let session, session.isShowingCheatsheet {
+                session.hideCheatsheet()
+                return .edited
+            }
             finish()
             return .cancelled
 
@@ -149,6 +155,11 @@ final class CaptureController {
         case .selectColor(let color):
             guard let session, session.hasSelection else { return .ignored }
             session.setColor(color)
+            return .edited
+
+        case .toggleCheatsheet:
+            guard let session else { return .ignored }
+            session.toggleCheatsheet()
             return .edited
         }
     }

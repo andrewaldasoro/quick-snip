@@ -2,14 +2,16 @@ import AppKit
 import KeyboardShortcuts
 import SwiftUI
 
+/// The General tab of Settings.
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     let launchAtLogin: LaunchAtLoginModel
+    let hotkey: CaptureHotkey
 
     var body: some View {
         Form {
             Section("Capture") {
-                KeyboardShortcuts.Recorder("Capture area:", name: .captureArea)
+                KeyboardShortcuts.Recorder("Capture area:", name: .captureArea) { _ in hotkey.refresh() }
             }
 
             Section("Output") {
@@ -53,7 +55,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: CheatsheetView.size.width)
     }
 
     static func displayPath(_ url: URL) -> String {

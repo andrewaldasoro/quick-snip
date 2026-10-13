@@ -125,7 +125,7 @@ final class AnnotationToolbar: NSView {
 
     private func makeStyleRow() -> NSStackView {
         let colors = AnnotationColor.allCases.enumerated().map { index, color in
-            let button = ColorSwatchButton(color: color, label: Self.label(for: color, index: index))
+            let button = ColorSwatchButton(color: color, label: Self.label(for: color))
             button.target = self
             button.action = #selector(colorClicked(_:))
             button.tag = index
@@ -217,12 +217,17 @@ final class AnnotationToolbar: NSView {
     }
 
     static func label(for tool: AnnotationTool) -> String {
-        let name = tool == .pixelate ? "Pixelate" : tool.rawValue.capitalized
-        return "\(name) (\(OverlayKeyMap.toolKey(for: tool).uppercased()))"
+        withShortcut(tool.displayName, for: .selectTool(tool))
     }
 
-    static func label(for color: AnnotationColor, index: Int) -> String {
-        "\(color.rawValue.capitalized) (\(index + 1))"
+    static func label(for color: AnnotationColor) -> String {
+        withShortcut(color.displayName, for: .selectColor(color))
+    }
+
+    /// "Undo (⌘Z)": the name plus the first key bound to the command in `OverlayKeyMap`.
+    private static func withShortcut(_ name: String, for command: OverlayCommand) -> String {
+        guard let key = OverlayKeyMap.keys(for: command).first else { return name }
+        return "\(name) (\(key))"
     }
 
     static func symbol(for command: OverlayCommand) -> String {
@@ -233,6 +238,7 @@ final class AnnotationToolbar: NSView {
         case .save: "square.and.arrow.down"
         case .copy: "doc.on.doc"
         case .deleteAnnotation: "trash"
+        case .toggleCheatsheet: "questionmark.circle"
         case .selectTool(let tool): symbol(for: tool)
         case .selectColor: "paintpalette"
         }
@@ -240,14 +246,15 @@ final class AnnotationToolbar: NSView {
 
     static func label(for command: OverlayCommand) -> String {
         switch command {
-        case .undo: "Undo (⌘Z)"
-        case .redo: "Redo (⌘⇧Z)"
-        case .cancel: "Cancel (Esc)"
-        case .save: "Save (⌘S)"
-        case .copy: "Copy (⌘C)"
-        case .deleteAnnotation: "Delete"
+        case .undo: withShortcut("Undo", for: command)
+        case .redo: withShortcut("Redo", for: command)
+        case .cancel: withShortcut("Cancel", for: command)
+        case .save: withShortcut("Save", for: command)
+        case .copy: withShortcut("Copy", for: command)
+        case .deleteAnnotation: withShortcut("Delete", for: command)
+        case .toggleCheatsheet: withShortcut("Keyboard Shortcuts", for: command)
         case .selectTool(let tool): label(for: tool)
-        case .selectColor(let color): color.rawValue.capitalized
+        case .selectColor(let color): label(for: color)
         }
     }
 
