@@ -14,13 +14,17 @@ final class ThumbnailPanelController: ThumbnailPresenting {
 
     private(set) var panel: NSPanel?
     private(set) var fileURL: URL?
-    private var dismissTask: Task<Void, Never>?
+    private(set) var dismissTask: Task<Void, Never>?
     private let urlOpener: any URLOpening
-    private let displayDuration: Duration
+    /// Injected so tests don't depend on real time (CI runners are too slow for short timers).
+    private let sleep: @Sendable (Duration) async throws -> Void
 
-    init(urlOpener: any URLOpening = WorkspaceURLOpener(), displayDuration: Duration = ThumbnailPanelController.displayDuration) {
+    init(
+        urlOpener: any URLOpening = WorkspaceURLOpener(),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.urlOpener = urlOpener
-        self.displayDuration = displayDuration
+        self.sleep = sleep
     }
 
     func show(_ image: CGImage, pointSize: CGSize, fileURL: URL?) {
@@ -49,9 +53,9 @@ final class ThumbnailPanelController: ThumbnailPresenting {
 
         self.panel = panel
         self.fileURL = fileURL
-        dismissTask = Task { [weak self, displayDuration] in
+        dismissTask = Task { [weak self, sleep] in
             // Throws only on cancellation, which the guard below handles.
-            try? await Task.sleep(for: displayDuration)
+            try? await sleep(Self.displayDuration)
             guard !Task.isCancelled else { return }
             self?.dismiss()
         }

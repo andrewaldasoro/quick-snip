@@ -152,3 +152,12 @@ final class TestDefaults {
         defaults.removePersistentDomain(forName: suiteName)
     }
 }
+
+/// Records requested sleeps and returns immediately, so timer-driven code runs without real time.
+actor SleepRecorder {
+    private(set) var durations: [Duration] = []
+
+    func record(_ duration: Duration) {
+        durations.append(duration)
+    }
+}
