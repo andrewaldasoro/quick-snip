@@ -1,38 +1,795 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QuickSnip</title>
-<meta name="description" content="A fast screenshot tool for the macOS menu bar.">
-<style>
-  :root { color-scheme: light dark; --text: #1d1d1f; --muted: #6e6e73; --bg: #fbfbfd; --accent: #0071e3; }
-  @media (prefers-color-scheme: dark) { :root { --text: #f5f5f7; --muted: #a1a1a6; --bg: #111113; --accent: #2997ff; } }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
-  main { max-width: 640px; margin: 0 auto; padding: 72px 16px; }
-  h1 { font-size: 44px; margin: 0 0 8px; letter-spacing: -0.02em; }
-  p.lede { font-size: 21px; color: var(--muted); margin: 0 0 32px; }
-  a.download { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 12px 22px; border-radius: 980px; font-weight: 600; }
-  ul { padding-left: 20px; }
-  small, footer { color: var(--muted); }
-  footer { margin-top: 48px; font-size: 14px; }
-  a { color: var(--accent); }
-</style>
-</head>
-<body>
-<main>
-  <h1>QuickSnip</h1>
-  <p class="lede">A fast screenshot tool for the macOS menu bar. Press a hotkey, select, annotate, copy or save.</p>
-  <p><a class="download" href="https://github.com/andrewaldasoro/quick-snip/releases/latest/download/QuickSnip.dmg">Download for Mac</a></p>
-  <p><small>macOS 15 or later, Apple silicon. Free and open source.</small></p>
-  <ul>
-    <li>Freezes every display first, so menus and tooltips are captured as they were</li>
-    <li>Rectangles, arrows, lines, pen, marker, text and pixelate</li>
-    <li>Full Retina resolution, keyboard-first, press <b>?</b> for every shortcut</li>
-    <li>Local only: your screenshots never leave your Mac</li>
-  </ul>
-  <p>QuickSnip isn't notarized by Apple: on first launch, open System Settings › Privacy &amp; Security and click <b>Open Anyway</b>. <a href="https://github.com/andrewaldasoro/quick-snip#install">Install guide</a></p>
-  <footer><a href="https://github.com/andrewaldasoro/quick-snip">Source on GitHub</a> · MIT License</footer>
-</main>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QuickSnip — Screenshots for Mac</title>
+    <meta
+      name="description"
+      content="Freeze the screen, mark it up, and copy it in seconds. A free, open-source screenshot tool for Mac that keeps everything on your computer."
+    />
+    <meta property="og:title" content="QuickSnip — Screenshots for Mac" />
+    <meta
+      property="og:description"
+      content="Freeze the screen, mark it up, and copy it in seconds. Free, open source, and private."
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:url"
+      content="https://andrewaldasoro.github.io/quick-snip/"
+    />
+    <meta
+      name="theme-color"
+      content="#f5f5f7"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0b0b0d"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a84ff'/%3E%3Cpath d='M18 26v-8h8M46 26v-8h-8M18 38v8h8M46 38v8h-8' stroke='white' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f5f5f7;
+        --surface: #ffffff;
+        --text: #1d1d1f;
+        --secondary: #6e6e73;
+        --hairline: rgba(0, 0, 0, 0.08);
+        --accent: #0071e3;
+        --accent-hover: #0077ed;
+        --shadow:
+          0 30px 60px -20px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04);
+        --radius: 18px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0b0d;
+          --surface: #1c1c1e;
+          --text: #f5f5f7;
+          --secondary: #a1a1a6;
+          --hairline: rgba(255, 255, 255, 0.1);
+          --accent: #2997ff;
+          --accent-hover: #47a6ff;
+          --shadow:
+            0 30px 60px -20px rgba(0, 0, 0, 0.7),
+            0 0 0 1px rgba(255, 255, 255, 0.06);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          17px/1.47 -apple-system,
+          BlinkMacSystemFont,
+          "SF Pro Text",
+          "Helvetica Neue",
+          Helvetica,
+          Arial,
+          sans-serif;
+        letter-spacing: -0.022em;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+
+      .wrap {
+        width: 100%;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      header {
+        padding: 20px 0;
+      }
+      header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text);
+        font-weight: 600;
+        font-size: 19px;
+      }
+      .brand:hover {
+        text-decoration: none;
+      }
+      .brand svg {
+        width: 28px;
+        height: 28px;
+      }
+      nav a {
+        color: var(--secondary);
+        font-size: 14px;
+      }
+      nav a:hover {
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: clamp(32px, 6vh, 64px);
+        padding: clamp(16px, 4vh, 48px) 0;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+        align-items: center;
+        gap: 56px;
+      }
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--accent);
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+      h1 {
+        margin: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue",
+          sans-serif;
+        font-size: clamp(40px, 5.6vw, 64px);
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+        font-weight: 700;
+      }
+      .lede {
+        margin: 20px 0 32px;
+        color: var(--secondary);
+        font-size: clamp(19px, 1.9vw, 21px);
+        line-height: 1.4;
+        max-width: 30em;
+      }
+      .lede kbd {
+        font: inherit;
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px 24px;
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 13px 24px;
+        border-radius: 980px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 17px;
+        transition:
+          background 0.2s ease,
+          transform 0.2s ease;
+      }
+      .button:hover {
+        background: var(--accent-hover);
+        text-decoration: none;
+        transform: translateY(-1px);
+      }
+      .button svg {
+        width: 18px;
+        height: 18px;
+      }
+      .link-arrow::after {
+        content: " ›";
+      }
+      .fineprint {
+        margin: 16px 0 0;
+        color: var(--secondary);
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+
+      .shot {
+        position: relative;
+        margin: 0;
+      }
+      .shot svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+      }
+
+      .features {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .features li {
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 22px 22px 24px;
+        box-shadow: 0 0 0 1px var(--hairline);
+      }
+      .features svg {
+        width: 28px;
+        height: 28px;
+        color: var(--accent);
+      }
+      .features h2 {
+        margin: 12px 0 6px;
+        font-size: 17px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+      .features p {
+        margin: 0;
+        color: var(--secondary);
+        font-size: 15px;
+        line-height: 1.45;
+        letter-spacing: -0.01em;
+      }
+
+      footer {
+        padding: 20px 0 28px;
+        color: var(--secondary);
+        font-size: 13px;
+        letter-spacing: -0.005em;
+      }
+      footer .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        border-top: 1px solid var(--hairline);
+        padding-top: 18px;
+      }
+      footer a {
+        color: var(--secondary);
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+
+      /* Shorter laptop screens: tighten so everything still fits without scrolling. */
+      @media (min-width: 901px) and (max-height: 840px) {
+        header {
+          padding: 14px 0;
+        }
+        main {
+          gap: 28px;
+          padding: 8px 0 16px;
+        }
+        h1 {
+          font-size: clamp(40px, 4.6vw, 52px);
+        }
+        .lede {
+          margin: 14px 0 24px;
+          font-size: 19px;
+        }
+        .features li {
+          padding: 18px 18px 20px;
+        }
+        .features h2 {
+          margin-top: 8px;
+        }
+        footer {
+          padding: 12px 0 18px;
+        }
+        footer .row {
+          padding-top: 12px;
+        }
+      }
+      @media (max-width: 900px) {
+        .hero {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 40px;
+          text-align: center;
+        }
+        .lede {
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .actions {
+          justify-content: center;
+        }
+        .features {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 520px) {
+        .wrap {
+          padding: 0 16px;
+        }
+        .features {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        nav {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <a class="brand" href="./" aria-label="QuickSnip home">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <rect width="64" height="64" rx="14" fill="#0a84ff" />
+            <path
+              d="M18 26v-8h8M46 26v-8h-8M18 38v8h8M46 38v8h-8"
+              stroke="#fff"
+              stroke-width="5"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          QuickSnip
+        </a>
+        <nav>
+          <a href="https://github.com/andrewaldasoro/quick-snip">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Screenshots for Mac</p>
+          <h1>Show exactly what you mean.</h1>
+          <p class="lede">
+            Press <kbd>⇧⌘2</kbd>. Drag over what matters. Mark it up, save it, done.
+          </p>
+          <div class="actions">
+            <a
+              class="button"
+              href="https://github.com/andrewaldasoro/quick-snip/releases/latest/download/QuickSnip.dmg"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Download
+            </a>
+            <a
+              class="link-arrow"
+              href="https://github.com/andrewaldasoro/quick-snip#install"
+              >How to install</a
+            >
+          </div>
+          <p class="fineprint">
+            Free and open source · macOS 15 or later · Apple silicon
+          </p>
+        </div>
+
+        <figure class="shot">
+          <svg
+            viewBox="0 0 640 420"
+            role="img"
+            aria-label="A frozen screen with a selected area, a red arrow pointing at a button, a pixelated email address, and the QuickSnip toolbar below the selection."
+          >
+            <defs>
+              <linearGradient id="wallpaper" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#5e5ce6" />
+                <stop offset="0.55" stop-color="#0a84ff" />
+                <stop offset="1" stop-color="#64d2ff" />
+              </linearGradient>
+              <clipPath id="screen">
+                <rect width="640" height="420" rx="18" />
+              </clipPath>
+              <pattern
+                id="pixels"
+                width="10"
+                height="10"
+                patternUnits="userSpaceOnUse"
+              >
+                <rect width="10" height="10" fill="#c7c7cc" />
+                <rect width="5" height="5" fill="#aeaeb2" />
+                <rect x="5" y="5" width="5" height="5" fill="#d1d1d6" />
+              </pattern>
+            </defs>
+            <g clip-path="url(#screen)">
+              <rect width="640" height="420" fill="url(#wallpaper)" />
+              <!-- An app window behind the capture -->
+              <rect
+                x="70"
+                y="52"
+                width="500"
+                height="300"
+                rx="12"
+                fill="#ffffff"
+              />
+              <rect
+                x="70"
+                y="52"
+                width="500"
+                height="36"
+                rx="12"
+                fill="#f2f2f7"
+              />
+              <rect x="70" y="76" width="500" height="12" fill="#f2f2f7" />
+              <circle cx="92" cy="70" r="6" fill="#ff5f57" />
+              <circle cx="112" cy="70" r="6" fill="#febc2e" />
+              <circle cx="132" cy="70" r="6" fill="#28c840" />
+              <rect
+                x="100"
+                y="116"
+                width="180"
+                height="14"
+                rx="7"
+                fill="#1d1d1f"
+                opacity="0.85"
+              />
+              <rect
+                x="100"
+                y="142"
+                width="300"
+                height="10"
+                rx="5"
+                fill="#8e8e93"
+                opacity="0.5"
+              />
+              <rect
+                x="100"
+                y="162"
+                width="260"
+                height="10"
+                rx="5"
+                fill="#8e8e93"
+                opacity="0.5"
+              />
+              <rect
+                x="100"
+                y="196"
+                width="150"
+                height="10"
+                rx="5"
+                fill="#8e8e93"
+                opacity="0.6"
+              />
+              <rect
+                x="100"
+                y="214"
+                width="190"
+                height="20"
+                fill="url(#pixels)"
+              />
+              <rect
+                x="100"
+                y="262"
+                width="120"
+                height="34"
+                rx="9"
+                fill="#0a84ff"
+              />
+              <rect x="122" y="275" width="76" height="8" rx="4" fill="#fff" />
+              <rect
+                x="232"
+                y="262"
+                width="96"
+                height="34"
+                rx="9"
+                fill="#e5e5ea"
+              />
+              <rect
+                x="400"
+                y="116"
+                width="140"
+                height="180"
+                rx="10"
+                fill="#f2f2f7"
+              />
+
+              <!-- Dimmed outside the selection -->
+              <path
+                fill="#000"
+                fill-opacity="0.45"
+                fill-rule="evenodd"
+                d="M0 0H640V420H0Z M84 100H356V316H84Z"
+              />
+              <rect
+                x="84.5"
+                y="100.5"
+                width="271"
+                height="215"
+                fill="none"
+                stroke="#fff"
+                stroke-width="1.5"
+              />
+              <g fill="#fff" stroke="#3a3a3c" stroke-width="1">
+                <rect x="80.5" y="96.5" width="7" height="7" />
+                <rect x="216.5" y="96.5" width="7" height="7" />
+                <rect x="352.5" y="96.5" width="7" height="7" />
+                <rect x="80.5" y="204.5" width="7" height="7" />
+                <rect x="352.5" y="204.5" width="7" height="7" />
+                <rect x="80.5" y="312.5" width="7" height="7" />
+                <rect x="216.5" y="312.5" width="7" height="7" />
+                <rect x="352.5" y="312.5" width="7" height="7" />
+              </g>
+              <rect
+                x="92"
+                y="78"
+                width="78"
+                height="18"
+                rx="4"
+                fill="#000"
+                fill-opacity="0.7"
+              />
+              <text
+                x="131"
+                y="91"
+                fill="#fff"
+                font-family="-apple-system, BlinkMacSystemFont, sans-serif"
+                font-size="10.5"
+                font-weight="500"
+                text-anchor="middle"
+              >
+                544 × 432
+              </text>
+
+              <!-- Annotations -->
+              <path
+                d="M318 226 L238 268"
+                stroke="#ff3b30"
+                stroke-width="5"
+                stroke-linecap="round"
+              />
+              <path
+                d="M226 274 L248 254 L252 278 Z"
+                fill="#ff3b30"
+                stroke="#ff3b30"
+                stroke-width="3"
+                stroke-linejoin="round"
+              />
+              <rect
+                x="94"
+                y="256"
+                width="132"
+                height="46"
+                rx="4"
+                fill="none"
+                stroke="#ff3b30"
+                stroke-width="3"
+              />
+
+              <!-- Toolbar -->
+              <g transform="translate(94 330)">
+                <rect
+                  width="252"
+                  height="40"
+                  rx="20"
+                  fill="#f5f5f7"
+                  fill-opacity="0.92"
+                  stroke="#000"
+                  stroke-opacity="0.08"
+                />
+                <g
+                  fill="none"
+                  stroke="#3a3a3c"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="18" y="13" width="16" height="14" rx="2" />
+                  <path d="M52 27 L64 15 M58 15 H64 V21" stroke="#ff3b30" />
+                  <path d="M82 27 L94 15" />
+                  <path d="M110 27 Q114 15 118 21 T126 15" />
+                  <path d="M142 15 V27 M138 15 H146" />
+                </g>
+                <rect
+                  x="46"
+                  y="8"
+                  width="24"
+                  height="24"
+                  rx="7"
+                  fill="#ff3b30"
+                  fill-opacity="0.14"
+                />
+                <circle cx="166" cy="20" r="6" fill="#ff3b30" />
+                <circle
+                  cx="166"
+                  cy="20"
+                  r="9"
+                  fill="none"
+                  stroke="#ff3b30"
+                  stroke-width="1.5"
+                />
+                <rect
+                  x="186"
+                  y="8"
+                  width="56"
+                  height="24"
+                  rx="12"
+                  fill="#0a84ff"
+                />
+                <text
+                  x="214"
+                  y="24.5"
+                  fill="#fff"
+                  font-family="-apple-system, BlinkMacSystemFont, sans-serif"
+                  font-size="12"
+                  font-weight="600"
+                  text-anchor="middle"
+                >
+                  Copy
+                </text>
+              </g>
+            </g>
+          </svg>
+        </figure>
+      </section>
+
+      <ul class="features">
+        <li>
+          <svg viewBox="0 0 28 28" aria-hidden="true">
+            <circle
+              cx="14"
+              cy="14"
+              r="11"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <rect
+              x="10"
+              y="9"
+              width="3"
+              height="10"
+              rx="1"
+              fill="currentColor"
+            />
+            <rect
+              x="15"
+              y="9"
+              width="3"
+              height="10"
+              rx="1"
+              fill="currentColor"
+            />
+          </svg>
+          <h2>Catch the moment</h2>
+          <p>
+            The screen freezes the instant you press the shortcut, so menus,
+            tooltips and hover states stay right where they were.
+          </p>
+        </li>
+        <li>
+          <svg viewBox="0 0 28 28" aria-hidden="true">
+            <path
+              d="M5 23 L21 7 M13 7 H21 V15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <h2>Point it out</h2>
+          <p>
+            Arrows, boxes, highlighter and text. Pixelate anything private. Move
+            any mark later, or undo it.
+          </p>
+        </li>
+        <li>
+          <svg viewBox="0 0 28 28" aria-hidden="true">
+            <rect
+              x="3"
+              y="5"
+              width="22"
+              height="15"
+              rx="2.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M10 24 H18"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M9 12.5 l3 3 l6 -6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <h2>Crisp on every screen</h2>
+          <p>
+            Full Retina detail from any display, and it pastes at the size you
+            saw it.
+          </p>
+        </li>
+        <li>
+          <svg viewBox="0 0 28 28" aria-hidden="true">
+            <rect
+              x="6"
+              y="12"
+              width="16"
+              height="12"
+              rx="2.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M9.5 12 V9 a4.5 4.5 0 0 1 9 0 V12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+          </svg>
+          <h2>Stays on your Mac</h2>
+          <p>
+            No account, no uploads, no tracking. Your screenshots go to your
+            clipboard or a folder you pick. Nowhere else.
+          </p>
+        </li>
+      </ul>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <div class="row">
+          <span>Press <b>?</b> during a capture to see every shortcut.</span>
+          <span
+            ><a href="https://github.com/andrewaldasoro/quick-snip"
+              >Source code</a
+            >
+            ·
+            <a href="https://github.com/andrewaldasoro/quick-snip/releases"
+              >Release notes</a
+            >
+            · MIT License</span
+          >
+        </div>
+      </div>
+    </footer>
+  </body>
 </html>
