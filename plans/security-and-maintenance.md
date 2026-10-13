@@ -1,4 +1,4 @@
-# Security & maintenance (ongoing, starts before Phase 5)
+# Security & maintenance (ongoing, starts before Phase 4)
 
 Cross-cutting track. CI and the dependency pipeline must be live before the first public release; audits repeat after that.
 
@@ -16,9 +16,8 @@ Repo: `github.com/andrewaldasoro/quick-snip`. Scanners (gitleaks, OSV-Scanner) r
 ## 2. Auto-upgrade pipeline (Dependabot)
 
 - [x] `.github/dependabot.yml`, weekly, **one PR for everything** (`multi-ecosystem-groups`); owner reviews via `CODEOWNERS`:
-  - `swift` ecosystem — `Package.swift` / `Package.resolved` (KeyboardShortcuts now, Sparkle from Phase 5)
+  - `swift` ecosystem — `Package.swift` / `Package.resolved` (KeyboardShortcuts now, Sparkle from Phase 4)
   - `github-actions` ecosystem — action SHAs
-  - `npm` ecosystem — `server/` (Worker) once Phase 4 adds it
 - [x] `dependabot-auto-merge.yml`: `dependabot/fetch-metadata`, then `gh pr merge --auto --squash` for patch/minor once CI passes. A PR with any major gets a `needs-review` label and waits for a human
 - [x] Security updates (Dependabot alerts) enabled, same auto-merge rule (security fixes come as their own PRs)
 - [x] Commit messages from Dependabot follow COMMITS format: `commit-message.prefix: "⬆️ Upgrade >"`
@@ -31,17 +30,16 @@ Repo: `github.com/andrewaldasoro/quick-snip`. Scanners (gitleaks, OSV-Scanner) r
 - [x] **Secrets:** GitHub secret scanning + push protection; gitleaks on every PR
 - [x] **Signed bundle checks** — extend `test-bundle.sh`:
   - Hardened runtime on; `codesign --verify --strict --deep` passes
-  - Designated requirement is the one release signing expects (identifier, or our self-signed cert) — revisit with Phase 5 signing
+  - Designated requirement is the one release signing expects (identifier, or our self-signed cert) — revisit with Phase 4 signing
   - Entitlements allow-list: fail on `get-task-allow` (release), `disable-library-validation`, `allow-unsigned-executable-memory`, `allow-jit`
   - `Info.plist`: no ATS exceptions
-- [ ] **Release checks** (Phase 5 `release.yml`): `codesign --verify --strict` on the shipped app, SHA-256 checksums + build-provenance attestation published, Sparkle EdDSA signature verified before the appcast is published
+- [ ] **Release checks** (Phase 4 `release.yml`): `codesign --verify --strict` on the shipped app, SHA-256 checksums + build-provenance attestation published, Sparkle EdDSA signature verified before the appcast is published
 
 ## 4. Manual audit checklist (each release + quarterly)
 
 - [x] Data handling (2026-10-10): captures only go to the clipboard or the user-chosen folder; no temp files; saved path was logged `.public` → fixed, guarded by `LogPrivacyTests`
 - [x] Permissions (2026-10-10): only Screen Recording requested; onboarding copy matches what the app does
-- [ ] Network: only Sparkle (HTTPS appcast) and the upload API (Phase 4); TLS only, no ATS exceptions, delete tokens in Keychain
-- [ ] Upload backend: unguessable ids, size/type/rate limits, metadata stripped, `nosniff`, takedown path; Worker secrets in CI only
+- [ ] Network: the only request is Sparkle's update check (HTTPS appcast); TLS only, no ATS exceptions. Captures never leave the Mac
 - [ ] Update channel: Sparkle private key only in Keychain / CI secret, appcast over HTTPS, key rotation plan written down
 - [ ] Dependencies: review new transitive packages and licenses; drop unused ones
 - [ ] Generate an SBOM per release (CycloneDX from `Package.resolved`), attach to the GitHub release

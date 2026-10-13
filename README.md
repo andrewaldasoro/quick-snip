@@ -32,7 +32,7 @@ QuickSnip needs **Screen Recording** to capture the screen. On first launch it s
 1. Click **Open System Settings** and turn on **QuickSnip** under **Screen & System Audio Recording**.
 2. Click **Quit & Reopen** — macOS only applies the permission after a relaunch.
 
-Images stay on your Mac unless you choose to share them.
+Images never leave your Mac: no accounts, no uploads.
 
 ## How to use
 

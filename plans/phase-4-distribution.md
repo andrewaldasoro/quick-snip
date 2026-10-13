@@ -1,4 +1,4 @@
-# Phase 5 — Distribution (2–3 days)
+# Phase 4 — Distribution (2–3 days)
 
 GitHub Releases, no paid Apple Developer Program (decided 2026-10-10). So no Developer ID, no notarization: macOS blocks the first launch and users allow it once.
 
