@@ -41,6 +41,26 @@ struct BundleConfigurationTests {
         #expect(plist["CFBundleVersion"] as? String == "$(BUILD)")
     }
 
+    /// Sparkle refuses updates that aren't signed with this key, and the feed must be HTTPS (no ATS exceptions).
+    @Test func updatesComeFromTheSignedHTTPSFeed() throws {
+        let plist = try infoPlist()
+        #expect(plist["SUFeedURL"] as? String == "https://andrewaldasoro.github.io/quick-snip/appcast.xml")
+        let key = try #require(plist["SUPublicEDKey"] as? String)
+        #expect(Data(base64Encoded: key)?.count == 32)
+    }
+
+    /// A tampered feed or archive is rejected before Sparkle reads or unpacks it.
+    @Test func feedAndUpdatesAreVerifiedFirst() throws {
+        let plist = try infoPlist()
+        #expect(plist["SURequireSignedFeed"] as? Bool == true)
+        #expect(plist["SUVerifyUpdateBeforeExtraction"] as? Bool == true)
+    }
+
+    /// Without this key Sparkle asks before its first automatic check, which a local-first app wants.
+    @Test func automaticUpdateChecksNeedConsent() throws {
+        #expect(try infoPlist()["SUEnableAutomaticChecks"] == nil)
+    }
+
     /// Changing the ID later resets the Screen Recording grant and preferences, so the scripts must agree on the final one.
     @Test(arguments: ["bundle.sh", "test-bundle.sh"])
     func scriptsDefaultToTheFinalBundleID(script: String) throws {

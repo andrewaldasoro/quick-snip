@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuickSnip</title>
+<meta name="description" content="A fast screenshot tool for the macOS menu bar.">
+<style>
+  :root { color-scheme: light dark; --text: #1d1d1f; --muted: #6e6e73; --bg: #fbfbfd; --accent: #0071e3; }
+  @media (prefers-color-scheme: dark) { :root { --text: #f5f5f7; --muted: #a1a1a6; --bg: #111113; --accent: #2997ff; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 72px 16px; }
+  h1 { font-size: 44px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  p.lede { font-size: 21px; color: var(--muted); margin: 0 0 32px; }
+  a.download { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 12px 22px; border-radius: 980px; font-weight: 600; }
+  ul { padding-left: 20px; }
+  small, footer { color: var(--muted); }
+  footer { margin-top: 48px; font-size: 14px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>QuickSnip</h1>
+  <p class="lede">A fast screenshot tool for the macOS menu bar. Press a hotkey, select, annotate, copy or save.</p>
+  <p><a class="download" href="https://github.com/andrewaldasoro/quick-snip/releases/latest/download/QuickSnip.dmg">Download for Mac</a></p>
+  <p><small>macOS 15 or later, Apple silicon. Free and open source.</small></p>
+  <ul>
+    <li>Freezes every display first, so menus and tooltips are captured as they were</li>
+    <li>Rectangles, arrows, lines, pen, marker, text and pixelate</li>
+    <li>Full Retina resolution, keyboard-first, press <b>?</b> for every shortcut</li>
+    <li>Local only: your screenshots never leave your Mac</li>
+  </ul>
+  <p>QuickSnip isn't notarized by Apple: on first launch, open System Settings › Privacy &amp; Security and click <b>Open Anyway</b>. <a href="https://github.com/andrewaldasoro/quick-snip#install">Install guide</a></p>
+  <footer><a href="https://github.com/andrewaldasoro/quick-snip">Source on GitHub</a> · MIT License</footer>
+</main>
+</body>
+</html>

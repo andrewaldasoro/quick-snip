@@ -36,14 +36,17 @@ Repo: `github.com/andrewaldasoro/quick-snip`. Scanners (gitleaks, OSV-Scanner) r
 - [ ] **Release checks** (Phase 4 `release.yml`):
   - [x] `codesign --verify --strict --deep` on the app inside the zip and the DMG (`test-package.sh`)
   - [x] SHA-256 checksums + build-provenance attestation published
-  - [ ] Sparkle EdDSA signature verified before the appcast is published
+  - [x] Sparkle EdDSA signatures (feed + archive) verified before the appcast is published (`make-appcast.sh`)
 
 ## 4. Manual audit checklist (each release + quarterly)
 
 - [x] Data handling (2026-10-10): captures only go to the clipboard or the user-chosen folder; no temp files; saved path was logged `.public` → fixed, guarded by `LogPrivacyTests`
 - [x] Permissions (2026-10-10): only Screen Recording requested; onboarding copy matches what the app does
 - [ ] Network: the only request is Sparkle's update check (HTTPS appcast); TLS only, no ATS exceptions. Captures never leave the Mac
-- [ ] Update channel: Sparkle private key only in Keychain / CI secret, appcast over HTTPS, key rotation plan written down
+- [x] Update channel (2026-10-13): Sparkle private key only in the login Keychain and the CI secret, appcast over HTTPS, signed feed required. Key rotation:
+  - Before any release (done once on 2026-10-13 after the key was printed to a log): delete the Keychain item, `generate_keys --account quicksnip`, update `SUPublicEDKey`, re-set the secret
+  - After releases: ship one update signed with the old key that carries the new `SUPublicEDKey`, then switch. If the old key is lost, users must reinstall from Releases once
+  - Keep an offline backup of the key (`generate_keys --account quicksnip -x`), never in the repo
 - [ ] Dependencies: review new transitive packages and licenses; drop unused ones
 - [ ] Generate an SBOM per release (CycloneDX from `Package.resolved`), attach to the GitHub release
 

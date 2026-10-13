@@ -32,6 +32,7 @@ struct SettingsWindowControllerTests {
             settings: AppSettings(defaults: store.defaults),
             launchAtLogin: LaunchAtLoginModel(service: FakeLoginItemService()),
             hotkey: CaptureHotkey(read: { "⇧⌘2" }),
+            updates: UpdatesModel(updater: FakeUpdater(), activation: SpyAppActivation()),
             activation: SpyAppActivation()
         )
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
@@ -53,6 +54,7 @@ struct SettingsWindowControllerTests {
             settings: AppSettings(defaults: TestDefaults().defaults),
             launchAtLogin: LaunchAtLoginModel(service: FakeLoginItemService()),
             hotkey: CaptureHotkey(read: { "⇧⌘2" }),
+            updates: UpdatesModel(updater: FakeUpdater(), activation: SpyAppActivation()),
             activation: SpyAppActivation()
         )
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
@@ -74,6 +76,7 @@ struct SettingsWindowControllerTests {
             settings: AppSettings(defaults: TestDefaults().defaults),
             launchAtLogin: LaunchAtLoginModel(service: FakeLoginItemService()),
             hotkey: CaptureHotkey(read: { "⇧⌘2" }),
+            updates: UpdatesModel(updater: FakeUpdater(), activation: SpyAppActivation()),
             activation: SpyAppActivation()
         )
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
@@ -96,6 +99,7 @@ struct SettingsWindowFocusTests {
             settings: AppSettings(defaults: TestDefaults().defaults),
             launchAtLogin: LaunchAtLoginModel(service: FakeLoginItemService()),
             hotkey: CaptureHotkey(read: { "⇧⌘2" }),
+            updates: UpdatesModel(updater: FakeUpdater(), activation: SpyAppActivation()),
             activation: activation
         )
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))

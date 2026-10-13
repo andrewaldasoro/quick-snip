@@ -1,7 +1,8 @@
 name: Release
 
 # Push a tag like v1.2.3 to publish a GitHub Release with the zip, DMG, checksums and
-# build-provenance attestations (our free stand-in for notarization).
+# build-provenance attestations (our free stand-in for notarization), then the Sparkle
+# appcast and landing page on GitHub Pages.
 on:
   push:
     tags: ["v*"]
@@ -42,6 +43,15 @@ jobs:
           BUILD: ${{ github.run_number }}
         run: ./scripts/test-package.sh
 
+      - name: Appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: ./scripts/make-appcast.sh
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist/site
+
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
@@ -54,3 +64,19 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/QuickSnip.dmg dist/QuickSnip.zip dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "QuickSnip $VERSION"
+
+  # After the release, so the appcast never points at assets that don't exist yet.
+  pages:
+    name: pages
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -34,5 +34,13 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://andrewaldasoro.github.io/quick-snip/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>gZaIoxHvu0WcrUD+GJPPI5nUrOFbpscqHTt6vcl54mg=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

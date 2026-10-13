@@ -15,8 +15,9 @@ check() {
 requirement="$(codesign -d -r - "$APP" 2>&1)"
 flags="$(codesign -dv "$APP" 2>&1)"
 entitlements="$(codesign -d --entitlements - --xml "$APP" 2>/dev/null)"
-# Entitlements that weaken the hardened runtime; QuickSnip needs none of them.
-RISKY_ENTITLEMENTS='get-task-allow|disable-library-validation|allow-unsigned-executable-memory|allow-jit|allow-dyld-environment-variables|disable-executable-page-protection'
+# Entitlements that weaken the hardened runtime; QuickSnip needs none of them. (It does need
+# disable-library-validation: ad-hoc code has no Team ID, so Sparkle wouldn't load otherwise.)
+RISKY_ENTITLEMENTS='get-task-allow|allow-unsigned-executable-memory|allow-jit|allow-dyld-environment-variables|disable-executable-page-protection'
 
 check "signature is valid, including nested code" "codesign --verify --strict --deep '$APP' 2>/dev/null"
 check "hardened runtime enabled" "grep -q 'runtime' <<<\"\$flags\""
@@ -28,6 +29,22 @@ check "no App Transport Security exceptions" "! /usr/libexec/PlistBuddy -c 'Prin
 check "KeyboardShortcuts resources bundled" "[ -d '$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle' ]"
 check "app icon bundled" "[ -f '$APP/Contents/Resources/AppIcon.icns' ]"
 check "executable is arm64" "lipo -archs '$APP/Contents/MacOS/QuickSnip' | grep -qx arm64"
+check "Sparkle embedded and signed" "codesign --verify --strict '$APP/Contents/Frameworks/Sparkle.framework' 2>/dev/null"
+check "Sparkle signed like the app (library validation)" \
+    "[ \"\$(codesign -dv '$APP/Contents/Frameworks/Sparkle.framework' 2>&1 | grep TeamIdentifier)\" = \"\$(grep TeamIdentifier <<<\"\$flags\")\" ]"
+check "no sandbox-only Sparkle XPC services" "[ ! -e '$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices' ]"
+# Regression: SwiftPM left an rpath into .build, leaking the builder's home folder into the binary.
+check "rpaths have no build-machine paths" "! otool -l '$APP/Contents/MacOS/QuickSnip' | grep -A2 LC_RPATH | grep -qE 'path (/Users/|$PWD)'"
+check "Sparkle found via the bundle's Frameworks" "otool -l '$APP/Contents/MacOS/QuickSnip' | grep -q '@executable_path/../Frameworks'"
+# Regression: library validation rejected the ad-hoc Sparkle.framework and the app died at launch.
+launches() {
+    "$APP/Contents/MacOS/QuickSnip" 2>/dev/null &
+    local pid=$!
+    sleep 2
+    kill -0 "$pid" 2>/dev/null || return 1
+    kill "$pid"
+}
+check "app launches (frameworks load)" launches
 check "Info.plist placeholders filled" "! grep -q '\$(' '$APP/Contents/Info.plist'"
 
 exit "$failures"
