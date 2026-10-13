@@ -17,7 +17,7 @@ struct ShortcutCheatsheet: Equatable, Sendable {
     static let notSet = "Not set"
 
     /// Capture keys in the order they're listed.
-    static let captureCommands: [OverlayCommand] = [.copy, .save, .cancel, .undo, .redo, .deleteAnnotation, .toggleCheatsheet]
+    static let captureCommands: [OverlayCommand] = [.copy, .readText, .save, .cancel, .undo, .redo, .deleteAnnotation, .toggleCheatsheet]
 
     let sections: [Section]
 
@@ -56,6 +56,7 @@ struct ShortcutCheatsheet: Equatable, Sendable {
     static func action(for command: OverlayCommand) -> String {
         switch command {
         case .copy: "Copy to the clipboard"
+        case .readText: "Read the text in the selection"
         case .save: "Save to the save folder"
         case .cancel: "Cancel the capture"
         case .undo: "Undo"

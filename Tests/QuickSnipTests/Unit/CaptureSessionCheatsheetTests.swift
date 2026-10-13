@@ -57,3 +57,28 @@ struct CaptureSessionCheatsheetTests {
         #expect(session.document.annotations.isEmpty)
     }
 }
+
+@MainActor
+struct CaptureSessionNoticeTests {
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), scale: 2)
+
+    @Test func showAndClearRedraw() {
+        let session = CaptureSession(displays: [display])
+        var changes = 0
+        session.onChange = { changes += 1 }
+
+        session.showNotice("Hi")
+        #expect(session.notice == "Hi")
+        session.clearNotice()
+
+        #expect(session.notice == nil)
+        #expect(changes == 2)
+    }
+
+    @Test func clickClearsTheNotice() {
+        let session = CaptureSession(displays: [display])
+        session.showNotice("Hi")
+        session.mouseDown(on: 1, at: CGPoint(x: 5, y: 5))
+        #expect(session.notice == nil)
+    }
+}

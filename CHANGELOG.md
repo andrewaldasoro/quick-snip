@@ -10,6 +10,10 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ## [Unreleased]
 
+### Added
+
+- **Read Text** (⇧⌘C, or the text button in the toolbar): reads the text in the selection and opens it in a window, where you can fix a misread word, then copy all of it or just the part you select. Recognition runs on your Mac with Apple's Vision; anything you pixelated stays unreadable
+
 ## [0.1.0] - 2026-10-13
 
 First release.

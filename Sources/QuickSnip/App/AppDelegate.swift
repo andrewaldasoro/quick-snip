@@ -22,10 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var captureController = CaptureController(
         capturer: ScreenCaptureKitCapturer(),
         presenter: OverlayWindowManager(),
-        pasteboard: SystemImagePasteboard(),
+        pasteboard: SystemClipboard(),
         saver: ScreenshotSaver(directory: settings.saveDirectory),
         settings: settings,
-        thumbnails: ThumbnailPanelController()
+        thumbnails: ThumbnailPanelController(),
+        recognizedText: RecognizedTextWindowController(clipboard: SystemClipboard())
     )
     private lazy var coordinator = CaptureCoordinator(
         permission: permission,

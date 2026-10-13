@@ -21,6 +21,11 @@ struct OverlayKeyMapTests {
         #expect(command(8, .command, "c") == .copy)
     }
 
+    @Test func commandShiftCCopiesText() {
+        // charactersIgnoringModifiers keeps Shift, so it arrives as "C".
+        #expect(command(8, [.command, .shift], "C") == .readText)
+    }
+
     @Test func commandSSaves() {
         #expect(command(1, .command, "s") == .save)
     }
@@ -33,7 +38,7 @@ struct OverlayKeyMapTests {
     @Test(
         arguments: [
             (UInt16(8), NSEvent.ModifierFlags(), "c"),
-            (UInt16(8), NSEvent.ModifierFlags([.command, .shift]), "c"),
+            (UInt16(8), NSEvent.ModifierFlags([.command, .option]), "c"),
             (UInt16(1), NSEvent.ModifierFlags([.command, .option]), "s"),
             (OverlayKeyMap.escape, NSEvent.ModifierFlags.command, nil),
             (UInt16(0), NSEvent.ModifierFlags.command, "a"),

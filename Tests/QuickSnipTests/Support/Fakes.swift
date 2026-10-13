@@ -107,9 +107,11 @@ final class SpyOverlayPresenter: OverlayPresenting {
 }
 
 @MainActor
-final class SpyPasteboard: ImagePasteboard {
+final class SpyPasteboard: ClipboardWriting {
     private(set) var written: [Data] = []
     func writePNG(_ data: Data) { written.append(data) }
+    private(set) var writtenText: [String] = []
+    func writeText(_ text: String) { writtenText.append(text) }
 }
 
 struct TestError: Error {}
@@ -189,4 +191,35 @@ final class FakeUpdater: UpdateChecking {
     }
 
     func checkForUpdates() { checkCount += 1 }
+}
+
+/// Text recognition that waits until the test releases it, so tests control when it finishes.
+actor GatedTextRecognizer: TextRecognizing {
+    private var result: Result<String, TestError>?
+    private var waiting: CheckedContinuation<Result<String, TestError>, Never>?
+    private(set) var imageSizes: [CGSize] = []
+
+    func recognizeText(in image: CGImage) async throws -> String {
+        imageSizes.append(CGSize(width: image.width, height: image.height))
+        let result = await withCheckedContinuation { continuation in
+            if let result = self.result { continuation.resume(returning: result) } else { waiting = continuation }
+        }
+        return try result.get()
+    }
+
+    /// Finishes the current (or next) recognition with `result`.
+    func finish(with result: Result<String, TestError>) {
+        if let waiting {
+            self.waiting = nil
+            waiting.resume(returning: result)
+        } else {
+            self.result = result
+        }
+    }
+}
+
+@MainActor
+final class SpyRecognizedText: RecognizedTextPresenting {
+    private(set) var shown: [String] = []
+    func show(_ text: String) { shown.append(text) }
 }

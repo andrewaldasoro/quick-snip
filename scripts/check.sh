@@ -10,7 +10,7 @@ TOTAL_MIN=85
 FILE_MIN=60
 # OS adapters and app shell: thin wrappers over system APIs (TCC, ScreenCaptureKit,
 # NSPasteboard, app activation, Sparkle, SwiftUI scene bodies) that only run in the real app. Keep logic out of them.
-EXEMPT='SparkleUpdater|AppActivation|QuickSnipApp|AppDelegate|OnboardingView|ImagePasteboard|ScreenCaptureAccess|DisplayCapturing'
+EXEMPT='SparkleUpdater|AppActivation|QuickSnipApp|AppDelegate|OnboardingView|Clipboard|ScreenCaptureAccess|DisplayCapturing'
 
 step() { printf '\n▸ %s\n' "$1"; }
 
@@ -25,7 +25,8 @@ fi
 
 step "Tests"
 if ! output="$(swift test --enable-code-coverage 2>&1)"; then
-    echo "$output" | grep -E "✘|error:"
+    # ↳ lines carry each failed expectation's values and message.
+    echo "$output" | grep -E "✘|↳|error:" | grep -vE "↳ (Testing Library Version|Target Platform)"
     exit 1
 fi
 echo "$output" | grep -E "Test run with"

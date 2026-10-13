@@ -5,6 +5,7 @@ A fast screenshot tool for macOS. Press a hotkey, the screen freezes, drag to se
 - Lives in the menu bar (the icon can be hidden)
 - Freezes every display first, so menus, tooltips and moving windows are captured as they were
 - Annotate with rectangles, arrows, lines, pen, marker, text and pixelate
+- Read the text in any capture, recognized on your Mac, and copy what you need
 - Copies or saves at full Retina resolution
 - Native macOS look, keyboard-first
 
@@ -75,6 +76,7 @@ After copying or saving, a thumbnail appears in the bottom-right corner for a fe
 | Shortcut | Action |
 |---|---|
 | **⌘C** / **Return** / **Enter** | Copy selection to the clipboard |
+| **⇧⌘C** | Read the text in the selection (on your Mac; pixelated text stays hidden). It opens in a window: copy all of it, or select part and press ⌘C |
 | **⌘S** | Save selection to the save folder |
 | **Esc** | Cancel the capture |
 | **⌘Z** | Undo |
