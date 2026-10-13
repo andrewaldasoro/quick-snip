@@ -30,6 +30,22 @@ for bundle in "$BIN_DIR"/*.bundle; do
     [ -e "$bundle" ] && cp -R "$bundle" "$APP/Contents/Resources/"
 done
 
+# Sparkle (updates). ditto keeps the framework's symlinks. The XPC services are only for
+# sandboxed apps and the headers only for building, so they're dropped.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$BIN_DIR/Sparkle.framework" "$SPARKLE"
+rm -rf "$SPARKLE/Versions/B/XPCServices" "$SPARKLE/Versions/B/Headers" "$SPARKLE/Versions/B/PrivateHeaders" \
+    "$SPARKLE/Versions/B/Modules" "$SPARKLE/XPCServices" "$SPARKLE/Headers" "$SPARKLE/PrivateHeaders" "$SPARKLE/Modules"
+
+# SwiftPM links frameworks via @rpath but only adds rpaths into .build (an absolute path with
+# the builder's user name). Point it at the bundle's Frameworks folder instead.
+EXECUTABLE="$APP/Contents/MacOS/QuickSnip"
+for rpath in $(otool -l "$EXECUTABLE" | awk '/LC_RPATH/ { getline; getline; print $2 }'); do
+    [[ "$rpath" == /Users/* || "$rpath" == "$PWD"* ]] && install_name_tool -delete_rpath "$rpath" "$EXECUTABLE"
+done
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$EXECUTABLE" 2>/dev/null
+
 sed -e "s/\$(BUNDLE_ID)/$BUNDLE_ID/" \
     -e "s/\$(VERSION)/$VERSION/" \
     -e "s/\$(BUILD)/$BUILD/" \
@@ -42,7 +58,14 @@ if [ "$SIGN_IDENTITY" = "-" ]; then
     REQUIREMENT_ARGS=(--requirements "=designated => identifier \"$BUNDLE_ID\"")
 fi
 
-codesign --force --deep --options runtime --timestamp=none \
+# Nested code first, inside out (Sparkle's documented order), then the app. Hardened runtime's
+# library validation only loads a framework signed by the same identity as the app, so
+# Sparkle's own signature is replaced.
+for nested in "$SPARKLE/Versions/B/Autoupdate" "$SPARKLE/Versions/B/Updater.app" "$SPARKLE"; do
+    codesign --force --options runtime --timestamp=none --sign "$SIGN_IDENTITY" "$nested"
+done
+
+codesign --force --options runtime --timestamp=none \
     --entitlements Support/QuickSnip.entitlements \
     "${REQUIREMENT_ARGS[@]}" \
     --sign "$SIGN_IDENTITY" "$APP"

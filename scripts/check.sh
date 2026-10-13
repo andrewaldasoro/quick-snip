@@ -9,8 +9,8 @@ cd "$(dirname "$0")/.."
 TOTAL_MIN=85
 FILE_MIN=60
 # OS adapters and app shell: thin wrappers over system APIs (TCC, ScreenCaptureKit,
-# NSPasteboard, app activation, SwiftUI scene bodies) that only run in the real app. Keep logic out of them.
-EXEMPT='AppActivation|QuickSnipApp|AppDelegate|OnboardingView|ImagePasteboard|ScreenCaptureAccess|DisplayCapturing'
+# NSPasteboard, app activation, Sparkle, SwiftUI scene bodies) that only run in the real app. Keep logic out of them.
+EXEMPT='SparkleUpdater|AppActivation|QuickSnipApp|AppDelegate|OnboardingView|ImagePasteboard|ScreenCaptureAccess|DisplayCapturing'
 
 step() { printf '\n▸ %s\n' "$1"; }
 

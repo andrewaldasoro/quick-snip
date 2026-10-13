@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let launchAtLogin: LaunchAtLoginModel
     let hotkey: CaptureHotkey
+    @Bindable var updates: UpdatesModel
 
     var body: some View {
         Form {
@@ -53,11 +54,22 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                 }
             }
+
+            Section("Updates") {
+                Toggle("Check for updates automatically", isOn: $updates.checksAutomatically)
+                LabeledContent("Version \(Self.appVersion)") {
+                    Button("Check Now", action: updates.checkNow)
+                }
+            }
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: CheatsheetView.size.width)
+    }
+
+    static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "(development)"
     }
 
     static func displayPath(_ url: URL) -> String {

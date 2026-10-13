@@ -9,11 +9,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let settings = AppSettings()
     let launchAtLogin = LaunchAtLoginModel()
     let hotkey = CaptureHotkey()
+    /// Lazy so tests that create an `AppDelegate` don't start Sparkle.
+    lazy var updates = UpdatesModel(updater: SparkleUpdater())
     private let permission = ScreenRecordingPermission()
     lazy var settingsWindow: any SettingsPresenting = SettingsWindowController(
         settings: settings,
         launchAtLogin: launchAtLogin,
-        hotkey: hotkey
+        hotkey: hotkey,
+        updates: updates
     )
     lazy var cheatsheetWindow: any CheatsheetPresenting = CheatsheetWindowController(hotkey: hotkey)
     private lazy var captureController = CaptureController(
@@ -43,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.captureController.screenConfigurationChanged() }
         }
         coordinator.appDidLaunch()
+        _ = updates  // Starts Sparkle's scheduled checks.
     }
 
     /// Opening the app again (Finder, Spotlight, `open`) shows Settings. It's the only

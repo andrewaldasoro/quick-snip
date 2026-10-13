@@ -21,6 +21,7 @@ struct CheatsheetFlowTests {
             settings: AppSettings(defaults: TestDefaults().defaults),
             launchAtLogin: LaunchAtLoginModel(service: FakeLoginItemService()),
             hotkey: hotkey,
+            updates: UpdatesModel(updater: FakeUpdater(), activation: SpyAppActivation()),
             activation: SpyAppActivation()
         )
         let cheatsheet = CheatsheetWindowController(hotkey: hotkey, activation: SpyAppActivation())

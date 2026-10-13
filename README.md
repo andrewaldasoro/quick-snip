@@ -41,7 +41,7 @@ QuickSnip needs **Screen Recording** to capture the screen. On first launch it s
 1. Click **Open System Settings** and turn on **QuickSnip** under **Screen & System Audio Recording**.
 2. Click **Quit & Reopen** — macOS only applies the permission after a relaunch.
 
-Images never leave your Mac: no accounts, no uploads.
+Images never leave your Mac: no accounts, no uploads. The only network request is the update check (Settings, or **Check for Updates…** in the menu).
 
 ## How to use
 
@@ -135,6 +135,7 @@ Open **Settings…** from the menu bar icon, or open QuickSnip again from Finder
 - **Show thumbnail after capture**
 - **Show menu bar icon**
 - **Launch at login**
+- **Check for updates automatically** — QuickSnip asks before its first automatic check. Updates are signed, and the check sends nothing about you or your Mac
 
 ## Build from source
 

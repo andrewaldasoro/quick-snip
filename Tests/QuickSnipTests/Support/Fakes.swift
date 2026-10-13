@@ -178,3 +178,15 @@ final class FakeHotkeySource {
         CaptureHotkey(read: { [unowned self] in text })
     }
 }
+
+@MainActor
+final class FakeUpdater: UpdateChecking {
+    var automaticallyChecksForUpdates: Bool
+    private(set) var checkCount = 0
+
+    init(automaticallyChecksForUpdates: Bool = false) {
+        self.automaticallyChecksForUpdates = automaticallyChecksForUpdates
+    }
+
+    func checkForUpdates() { checkCount += 1 }
+}

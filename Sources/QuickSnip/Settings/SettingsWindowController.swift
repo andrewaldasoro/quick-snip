@@ -13,6 +13,7 @@ final class SettingsWindowController: SettingsPresenting {
     private let settings: AppSettings
     private let launchAtLogin: LaunchAtLoginModel
     private let hotkey: CaptureHotkey
+    private let updates: UpdatesModel
     private let activation: any AppActivating
     private var window: NSWindow?
 
@@ -20,11 +21,13 @@ final class SettingsWindowController: SettingsPresenting {
         settings: AppSettings,
         launchAtLogin: LaunchAtLoginModel,
         hotkey: CaptureHotkey,
+        updates: UpdatesModel,
         activation: any AppActivating = SystemAppActivation()
     ) {
         self.settings = settings
         self.launchAtLogin = launchAtLogin
         self.hotkey = hotkey
+        self.updates = updates
         self.activation = activation
     }
 
@@ -41,7 +44,9 @@ final class SettingsWindowController: SettingsPresenting {
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
         tabs.addTabViewItem(
-            Self.tab(SettingsView(settings: settings, launchAtLogin: launchAtLogin, hotkey: hotkey), label: "General", symbol: "gearshape"))
+            Self.tab(
+                SettingsView(settings: settings, launchAtLogin: launchAtLogin, hotkey: hotkey, updates: updates), label: "General",
+                symbol: "gearshape"))
         tabs.addTabViewItem(Self.tab(CheatsheetView(hotkey: hotkey), label: "Shortcuts", symbol: "keyboard"))
 
         let window = NSWindow(contentViewController: tabs)

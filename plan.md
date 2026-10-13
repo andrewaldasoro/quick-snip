@@ -19,7 +19,7 @@ Original name, icon and assets.
 | Undo | `UndoManager` |
 | Login item | `SMAppService` |
 | OCR (later) | Vision `VNRecognizeTextRequest` |
-| Distribution | GitHub Releases (zip + DMG), ad-hoc/self-signed, Sparkle. No paid Apple program → no notarization |
+| Distribution | GitHub Releases (zip + DMG), ad-hoc, Sparkle (signed feed on GitHub Pages). No paid Apple program → no notarization |
 | CI / security | GitHub Actions (`check.sh --bundle`), Dependabot auto-upgrades, CodeQL, OSV-Scanner, gitleaks |
 
 ## Key design decisions

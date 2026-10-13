@@ -9,11 +9,12 @@ GitHub Releases, no paid Apple Developer Program (decided 2026-10-10). So no Dev
 - [x] Package: zipped `.app` (`ditto -c -k --keepParent`) + DMG with Applications link (`scripts/package.sh`, checked by `scripts/test-package.sh`; dry run in CI on every PR)
 - [x] `release.yml` (GitHub Actions) on tag `v*`: `check.sh --bundle` → bundle with `VERSION`/`BUILD` from the tag → zip + DMG → SHA-256 checksums → GitHub Release with notes
 - [x] Build provenance: `actions/attest-build-provenance` on the artifacts (free trust signal replacing notarization); `gh attestation verify` documented in the README
-- [ ] Sparkle updates: EdDSA keys (private key as CI secret), `appcast.xml` on GitHub Pages, enclosures point at release assets. Check the update keeps the TCC grant and isn't blocked by quarantine
+- [x] Sparkle updates (2.10): EdDSA key (login Keychain, account `quicksnip`; `SPARKLE_PRIVATE_KEY` secret), signed `appcast.xml` on GitHub Pages via `make-appcast.sh` in `release.yml`, enclosures point at release assets; Settings toggle + Check for Updates… menu item; asks before the first automatic check
+  - [ ] After the first two releases: an update from the older one installs, keeps the Screen Recording grant, and isn't blocked by quarantine
 - [x] README install section: download, move to Applications, first launch → System Settings › Privacy & Security › **Open Anyway** (macOS 15 dropped the right-click › Open bypass); or `xattr -dr com.apple.quarantine /Applications/QuickSnip.app`
 - [x] README: features, shortcut guide, permissions, settings, build from source
 - [ ] README screenshots / demo GIF
-- [ ] Landing page: GitHub Pages (same site as the appcast)
+- [x] Landing page: GitHub Pages (same site as the appcast, `site/index.html`)
 
 - [ ] First release: tag `v0.1.0`, check the release page, download on a clean account, Open Anyway, grant Screen Recording
 

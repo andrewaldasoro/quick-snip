@@ -13,5 +13,5 @@ Include what you found, how to reproduce it, and the QuickSnip and macOS version
 ## What QuickSnip touches
 
 - **Screen Recording** is the only permission it asks for. Captures go only to the clipboard or the folder you choose.
-- Captures never leave your Mac: no accounts, no uploads. The only planned network request is the update check (Sparkle, HTTPS, signed updates).
+- Captures never leave your Mac: no accounts, no uploads. The only network request is the update check (Sparkle over HTTPS, no system profile). The feed and every update are EdDSA-signed and verified before they're read or unpacked.
 - Releases are built by GitHub Actions from this repository, with SHA-256 checksums and build-provenance attestations.

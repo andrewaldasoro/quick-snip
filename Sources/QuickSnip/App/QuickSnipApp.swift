@@ -36,6 +36,10 @@ private struct MenuContent: View {
             appDelegate.showCheatsheet()
         }
 
+        Button("Check for Updates…") {
+            appDelegate.updates.checkNow()
+        }
+
         Button("Quit QuickSnip") {
             NSApp.terminate(nil)
         }
