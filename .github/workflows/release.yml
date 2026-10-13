@@ -1,0 +1,56 @@
+name: Release
+
+# Push a tag like v1.2.3 to publish a GitHub Release with the zip, DMG, checksums and
+# build-provenance attestations (our free stand-in for notarization).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: xcode-27
+    timeout-minutes: 45
+    permissions:
+      contents: write # create the release
+      id-token: write # sign the attestations
+      attestations: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Version from tag
+        # package.sh rejects anything that isn't x.y.z.
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Quality gate
+        run: ./scripts/check.sh --bundle
+
+      - name: Package
+        env:
+          # Grows with every run of this workflow; Sparkle compares CFBundleVersion.
+          BUILD: ${{ github.run_number }}
+        run: ./scripts/test-package.sh
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/QuickSnip.zip
+            dist/QuickSnip.dmg
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/QuickSnip.dmg dist/QuickSnip.zip dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "QuickSnip $VERSION"

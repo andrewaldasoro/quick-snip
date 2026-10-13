@@ -1,4 +1,4 @@
-# Phase 6 — Extras (post-v1, optional)
+# Phase 5 — Extras (post-v1, optional)
 
 ## Candidates
 

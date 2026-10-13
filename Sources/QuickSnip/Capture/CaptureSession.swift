@@ -20,6 +20,8 @@ final class CaptureSession {
     private(set) var tool: AnnotationTool?
     private(set) var style = AnnotationStyle.default
     private(set) var selectedAnnotationID: UUID?
+    /// The shortcut cheatsheet (**?**) is drawn over the overlay.
+    private(set) var isShowingCheatsheet = false
 
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
@@ -94,6 +96,11 @@ final class CaptureSession {
 
     func mouseDown(on id: CGDirectDisplayID, at point: CGPoint) {
         guard editors[id] != nil else { return }
+        // The cheatsheet covers the selection, so a click only closes it.
+        if isShowingCheatsheet {
+            hideCheatsheet()
+            return
+        }
         let onActive = id == activeDisplayID
         let selection = onActive ? editors[id]?.selection : nil
         let hit = onActive ? hitTest(on: id, at: point) : .outside
@@ -210,6 +217,17 @@ final class CaptureSession {
         guard let id = selectedAnnotationID, document.annotation(id) != nil else { return false }
         document.remove(id)
         return true
+    }
+
+    func toggleCheatsheet() {
+        isShowingCheatsheet.toggle()
+        notify()
+    }
+
+    func hideCheatsheet() {
+        guard isShowingCheatsheet else { return }
+        isShowingCheatsheet = false
+        notify()
     }
 
     func undo() { document.undo() }

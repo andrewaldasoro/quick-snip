@@ -257,3 +257,65 @@ struct SelectionOverlayViewCursorTests {
         #expect(view.trackingAreas.contains { $0.options.contains(.mouseMoved) && $0.options.contains(.cursorUpdate) })
     }
 }
+
+@MainActor
+struct SelectionOverlayViewCheatsheetTests {
+    private let display = CapturedDisplay(
+        displayID: 1,
+        frame: CGRect(x: 0, y: 0, width: 1200, height: 800),
+        image: TestImages.solidImage(width: 1200, height: 800, color: RGBA(r: 255, g: 255, b: 255, a: 255))
+    )
+
+    private func render(_ view: NSView) throws -> CGImage {
+        let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return try #require(rep.cgImage)
+    }
+
+    /// Brightness of a pixel inside the panel, clear of its text and rounded corners.
+    private func brightnessInsidePanel(of view: NSView) throws -> Int {
+        let image = try render(view)
+        let scale = image.width / Int(view.bounds.width)
+        let frame = CheatsheetPanel(cheatsheet: .overlay).frame(in: view.bounds)
+        let pixel = TestImages.pixel(image, x: (Int(frame.minX) + 8) * scale, y: (Int(frame.midY)) * scale)
+        return Int(pixel.r)
+    }
+
+    @Test func cheatsheetIsDrawnWhenShown() throws {
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        let dimmed = try brightnessInsidePanel(of: view)
+
+        session.toggleCheatsheet()
+
+        #expect(try brightnessInsidePanel(of: view) < dimmed / 2)
+    }
+
+    @Test func toolbarHidesWhileCheatsheetIsShown() throws {
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        session.onChange = { view.sessionDidChange() }
+        TestSessions.select(session, on: 1, CGRect(x: 100, y: 100, width: 300, height: 200))
+
+        session.toggleCheatsheet()
+        #expect(try #require(view.toolbar).isHidden)
+
+        session.toggleCheatsheet()
+        #expect(try #require(view.toolbar).isHidden == false)
+    }
+
+    @Test func questionMarkKeySendsToggle() throws {
+        let session = CaptureSession(displays: [display])
+        var commands: [OverlayCommand] = []
+        let view = SelectionOverlayView(display: display, session: session) { commands.append($0) }
+        let event = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: .shift, timestamp: 0, windowNumber: 0,
+                context: nil, characters: "?", charactersIgnoringModifiers: "?", isARepeat: false, keyCode: 44
+            ))
+
+        view.keyDown(with: event)
+
+        #expect(commands == [.toggleCheatsheet])
+    }
+}

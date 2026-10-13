@@ -96,7 +96,7 @@ struct ThumbnailPanelControllerTests {
         controller.show(image, pointSize: CGSize(width: 240, height: 160), fileURL: nil)
         #expect(controller.panel != nil)
 
-        await try #require(controller.dismissTask).value
+        try await #require(controller.dismissTask).value
 
         #expect(controller.panel == nil)
         #expect(await waited.durations == [ThumbnailPanelController.displayDuration])

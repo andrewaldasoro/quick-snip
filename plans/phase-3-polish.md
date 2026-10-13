@@ -24,13 +24,13 @@
 - [x] Crosshair shows as soon as the screen freezes (forced activation + cursor refresh)
 - [x] Settings window: sized to content, raised and focused (`NSWindow.hosting`, `bringToFront`, `SystemAppActivation`)
 - [x] `run.sh` waits for the previous instance and retries `open` (fixed -600 on quick relaunch)
-- [ ] Keyboard shortcut cheatsheet, generated from `OverlayKeyMap` + the capture hotkey (single source of truth, so it can't drift from the real bindings or the README):
-  - [ ] `ShortcutCheatsheet` model (sections: global, capture, tools, colors, text) — unit-tested against `OverlayKeyMap`
-  - [ ] `CheatsheetView` (SwiftUI, grouped list, native key-cap style); shows the user's current capture hotkey
-  - [ ] Settings: "Shortcuts" section/tab with the cheatsheet
-  - [ ] Menu bar menu: "Keyboard Shortcuts…" item opening the cheatsheet window (goes through `AppActivating` + `bringToFront`)
-  - [ ] Integration test: menu item and Settings both show the same entries
-  - [ ] Overlay: **?** toggles a cheatsheet overlay during capture (`OverlayCommand.toggleCheatsheet` in `OverlayKeyMap`; Esc/**?** closes it without cancelling the capture); drawn in-view, not a menu/popover (the overlay sits above menus)
+- [x] Keyboard shortcut cheatsheet, generated from `OverlayKeyMap` + the capture hotkey (single source of truth, so it can't drift from the real bindings or the README):
+  - [x] `ShortcutCheatsheet` model (sections: global, capture, tools, colors, text) — unit-tested against `OverlayKeyMap`
+  - [x] `CheatsheetView` (SwiftUI, grouped list, native key-cap style); shows the user's current capture hotkey
+  - [x] Settings: "Shortcuts" section/tab with the cheatsheet
+  - [x] Menu bar menu: "Keyboard Shortcuts…" item opening the cheatsheet window (goes through `AppActivating` + `bringToFront`)
+  - [x] Integration test: menu item and Settings both show the same entries
+  - [x] Overlay: **?** toggles a cheatsheet overlay during capture (`OverlayCommand.toggleCheatsheet` in `OverlayKeyMap`; Esc/**?** closes it without cancelling the capture); drawn in-view, not a menu/popover (the overlay sits above menus)
 - [ ] Manual test pass:
   - [x] Different resolutions / scales (2026-10-10)
   - [ ] Multi-monitor mixed scale at once

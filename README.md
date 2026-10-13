@@ -12,7 +12,7 @@ Requires macOS 15 or later on Apple silicon.
 
 ## Install
 
-Download the latest `QuickSnip.dmg` (or `.zip`) from [Releases](https://github.com/andrewaldasoro/quick-snip/releases) and drag **QuickSnip** to **Applications**.
+Download [**QuickSnip.dmg**](https://github.com/andrewaldasoro/quick-snip/releases/latest/download/QuickSnip.dmg) (or the `.zip` from [Releases](https://github.com/andrewaldasoro/quick-snip/releases)), open it and drag **QuickSnip** to **Applications**.
 
 QuickSnip isn't notarized by Apple, so macOS blocks the first launch:
 
@@ -25,6 +25,15 @@ Or, from Terminal:
 xattr -dr com.apple.quarantine /Applications/QuickSnip.app
 ```
 
+### Verify the download (optional)
+
+Every release is built by GitHub Actions from this repository, with SHA-256 checksums and a signed build-provenance attestation:
+
+```bash
+gh attestation verify QuickSnip.dmg --repo andrewaldasoro/quick-snip   # built from this repo by its release workflow
+shasum -a 256 -c SHA256SUMS --ignore-missing                          # matches the published checksum
+```
+
 ### Screen Recording permission
 
 QuickSnip needs **Screen Recording** to capture the screen. On first launch it shows a welcome window:
@@ -32,11 +41,11 @@ QuickSnip needs **Screen Recording** to capture the screen. On first launch it s
 1. Click **Open System Settings** and turn on **QuickSnip** under **Screen & System Audio Recording**.
 2. Click **Quit & Reopen** — macOS only applies the permission after a relaunch.
 
-Images stay on your Mac unless you choose to share them.
+Images never leave your Mac: no accounts, no uploads.
 
 ## How to use
 
-1. Press **⌘⇧2** (or choose **Capture Area** from the menu bar icon). Every display freezes.
+1. Press **⇧⌘2** (or choose **Capture Area** from the menu bar icon). Every display freezes.
 2. Drag to select an area. Drag the edges or corners to resize, drag inside to move it.
 3. Annotate with the toolbar or the keys below.
 4. Press **Return** to copy, **⌘S** to save, or **Esc** to cancel.
@@ -49,25 +58,27 @@ After copying or saving, a thumbnail appears in the bottom-right corner for a fe
 
 | Shortcut | Action |
 |---|---|
-| **⌘⇧2** | Capture area (change it in Settings) |
+| **⇧⌘2** | Capture area (change it in Settings) |
 
 ### Menu bar menu
 
 | Shortcut | Action |
 |---|---|
 | **⌘,** | Settings… |
+| | Keyboard Shortcuts… (this guide, with your current capture hotkey) |
 | **⌘Q** | Quit QuickSnip |
 
 ### While capturing
 
 | Shortcut | Action |
 |---|---|
-| **Return** / **Enter** / **⌘C** | Copy selection to the clipboard |
+| **⌘C** / **Return** / **Enter** | Copy selection to the clipboard |
 | **⌘S** | Save selection to the save folder |
 | **Esc** | Cancel the capture |
 | **⌘Z** | Undo |
-| **⌘⇧Z** | Redo |
-| **Delete** | Delete the selected annotation (click one in move mode first) |
+| **⇧⌘Z** | Redo |
+| **Delete** / **⌦** | Delete the selected annotation (click one in move mode first) |
+| **?** | Show or hide all shortcuts (**Esc** closes them without cancelling) |
 
 ### Tools
 
@@ -116,7 +127,7 @@ Press a tool's key to pick it; press it again to go back to move mode (drag anno
 
 ## Settings
 
-Open **Settings…** from the menu bar icon, or open QuickSnip again from Finder or Spotlight (the only way back when the menu bar icon is hidden).
+Open **Settings…** from the menu bar icon, or open QuickSnip again from Finder or Spotlight (the only way back when the menu bar icon is hidden). The **Shortcuts** tab lists every shortcut.
 
 - **Capture area** — record a new global shortcut
 - **Save to** — folder for saved screenshots (default: Desktop). Files are named `QuickSnip 2026-10-10 at 14.30.00.png`

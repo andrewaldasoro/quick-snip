@@ -8,11 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let settings = AppSettings()
     let launchAtLogin = LaunchAtLoginModel()
+    let hotkey = CaptureHotkey()
     private let permission = ScreenRecordingPermission()
     lazy var settingsWindow: any SettingsPresenting = SettingsWindowController(
         settings: settings,
-        launchAtLogin: launchAtLogin
+        launchAtLogin: launchAtLogin,
+        hotkey: hotkey
     )
+    lazy var cheatsheetWindow: any CheatsheetPresenting = CheatsheetWindowController(hotkey: hotkey)
     private lazy var captureController = CaptureController(
         capturer: ScreenCaptureKitCapturer(),
         presenter: OverlayWindowManager(),
@@ -51,6 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showSettings() {
         settingsWindow.show()
+    }
+
+    func showCheatsheet() {
+        cheatsheetWindow.show()
     }
 
     /// From the menu bar "Capture Area" item.

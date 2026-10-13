@@ -329,3 +329,56 @@ struct CaptureControllerOutputTests {
         #expect(presenter.dismissCount == 0)
     }
 }
+
+@MainActor
+struct CaptureControllerCheatsheetTests {
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), scale: 2)
+
+    private func startedController() async throws -> (CaptureController, SpyOverlayPresenter, CaptureSession) {
+        let presenter = SpyOverlayPresenter()
+        let controller = CaptureController(
+            capturer: FakeDisplayCapturing(displays: [display]),
+            presenter: presenter,
+            pasteboard: SpyPasteboard(),
+            saver: ScreenshotSaver(directory: TestImages.temporaryDirectory())
+        )
+        await controller.start()
+        return (controller, presenter, try #require(controller.session))
+    }
+
+    @Test func toggleShowsCheatsheetWithoutASelection() async throws {
+        let (controller, _, session) = try await startedController()
+        #expect(controller.handle(.toggleCheatsheet) == .edited)
+        #expect(session.isShowingCheatsheet)
+    }
+
+    @Test func toggleWithoutCaptureIsIgnored() {
+        let controller = CaptureController(
+            capturer: FakeDisplayCapturing(displays: [display]),
+            presenter: SpyOverlayPresenter(),
+            pasteboard: SpyPasteboard(),
+            saver: ScreenshotSaver(directory: TestImages.temporaryDirectory())
+        )
+        #expect(controller.handle(.toggleCheatsheet) == .ignored)
+    }
+
+    @Test func escapeClosesCheatsheetAndKeepsCapture() async throws {
+        let (controller, presenter, session) = try await startedController()
+        controller.handle(.toggleCheatsheet)
+
+        #expect(controller.handle(.cancel) == .edited)
+
+        #expect(!session.isShowingCheatsheet)
+        #expect(controller.isActive)
+        #expect(presenter.dismissCount == 0)
+    }
+
+    @Test func escapeAfterClosingCheatsheetCancels() async throws {
+        let (controller, presenter, _) = try await startedController()
+        controller.handle(.toggleCheatsheet)
+        controller.handle(.cancel)
+
+        #expect(controller.handle(.cancel) == .cancelled)
+        #expect(presenter.dismissCount == 1)
+    }
+}

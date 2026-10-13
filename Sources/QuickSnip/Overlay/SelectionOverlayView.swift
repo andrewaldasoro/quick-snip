@@ -28,7 +28,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Screenshot area selection")
-        setAccessibilityHelp("Drag to select an area. Return copies, Command-S saves, Escape cancels.")
+        setAccessibilityHelp("Drag to select an area. Return copies, Command-S saves, Escape cancels, question mark lists all shortcuts.")
     }
 
     @available(*, unavailable)
@@ -87,7 +87,9 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     func sessionDidChange() {
         needsDisplay = true
 
-        guard isActiveDisplay, let selection = session.selection(on: display.displayID), !session.isEditingSelection else {
+        guard isActiveDisplay, let selection = session.selection(on: display.displayID), !session.isEditingSelection,
+            !session.isShowingCheatsheet
+        else {
             toolbar?.isHidden = true
             return
         }
@@ -135,6 +137,14 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     // MARK: Drawing
 
     override func draw(_ dirtyRect: NSRect) {
+        drawCapture()
+        // On every display, so it's in front of the user wherever they're looking.
+        if session.isShowingCheatsheet {
+            CheatsheetPanel(cheatsheet: .overlay).draw(in: bounds)
+        }
+    }
+
+    private func drawCapture() {
         frozenImage.draw(
             in: bounds,
             from: .zero,

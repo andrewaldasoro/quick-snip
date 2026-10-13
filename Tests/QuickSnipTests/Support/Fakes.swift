@@ -52,6 +52,12 @@ final class SpySettingsWindow: SettingsPresenting {
 }
 
 @MainActor
+final class SpyCheatsheetWindow: CheatsheetPresenting {
+    private(set) var showCount = 0
+    func show() { showCount += 1 }
+}
+
+@MainActor
 final class FakeDisplayCapturing: DisplayCapturing {
     var result: Result<[CapturedDisplay], any Error>
     private(set) var callCount = 0
@@ -159,5 +165,16 @@ actor SleepRecorder {
 
     func record(_ duration: Duration) {
         durations.append(duration)
+    }
+}
+
+/// Stands in for the recorded capture shortcut, so tests can change it.
+@MainActor
+final class FakeHotkeySource {
+    var text: String?
+    init(_ text: String?) { self.text = text }
+
+    func makeHotkey() -> CaptureHotkey {
+        CaptureHotkey(read: { [unowned self] in text })
     }
 }

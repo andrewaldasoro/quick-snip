@@ -2,10 +2,14 @@ import AppKit
 
 enum AnnotationTool: String, CaseIterable, Sendable {
     case rectangle, arrow, line, pen, marker, text, pixelate
+
+    var displayName: String { rawValue.capitalized }
 }
 
 enum AnnotationColor: String, CaseIterable, Sendable {
     case red, orange, yellow, green, blue, purple, black, white
+
+    var displayName: String { rawValue.capitalized }
 
     var components: (red: CGFloat, green: CGFloat, blue: CGFloat) {
         switch self {
