@@ -160,6 +160,19 @@ struct SelectionEditorTests {
         #expect(!editor.isDragging)
     }
 
+    @Test func selectReplacesTheSelectionClippedToBounds() {
+        var editor = editor(with: CGRect(x: 50, y: 20, width: 100, height: 60))
+        editor.select(CGRect(x: 150, y: -10, width: 100, height: 50))
+        #expect(editor.selection == CGRect(x: 150, y: 0, width: 50, height: 40))
+        #expect(!editor.isDragging)
+    }
+
+    @Test func selectingARectOffTheDisplaySelectsNothing() {
+        var editor = SelectionEditor(bounds: bounds)
+        editor.select(CGRect(x: 300, y: 0, width: 10, height: 10))
+        #expect(editor.selection == nil)
+    }
+
     // MARK: Handles
 
     @Test func handlePositions() {

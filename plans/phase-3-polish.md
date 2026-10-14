@@ -31,12 +31,12 @@
   - [x] Menu bar menu: "Keyboard Shortcuts…" item opening the cheatsheet window (goes through `AppActivating` + `bringToFront`)
   - [x] Integration test: menu item and Settings both show the same entries
   - [x] Overlay: **?** toggles a cheatsheet overlay during capture (`OverlayCommand.toggleCheatsheet` in `OverlayKeyMap`; Esc/**?** closes it without cancelling the capture); drawn in-view, not a menu/popover (the overlay sits above menus)
-- [ ] Manual test pass:
+- [x] Manual test pass:
   - [x] Different resolutions / scales (2026-10-10)
-  - [ ] Multi-monitor mixed scale at once
-  - [ ] Full-screen app
-  - [ ] Spaces
-  - [ ] Launch at login
+  - [x] Multi-monitor mixed scale at once (2026-10-14)
+  - [x] Full-screen app (2026-10-14)
+  - [x] Spaces (2026-10-14)
+  - [x] Launch at login (2026-10-14)
 
 ## Done when
 

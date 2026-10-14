@@ -144,6 +144,13 @@ struct SelectionEditor {
         self.drag = nil
     }
 
+    /// Replaces the selection with `rect`, clipped to the display (a snapped window).
+    mutating func select(_ rect: CGRect) {
+        let clipped = rect.intersection(bounds)
+        selection = clipped.isNull ? nil : clipped
+        drag = nil
+    }
+
     mutating func clear() {
         selection = nil
         drag = nil

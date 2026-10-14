@@ -9,9 +9,12 @@ import Foundation
 /// - With a tool, dragging inside the selection draws (text: click to type).
 /// - Without a tool, dragging an annotation moves it; otherwise it moves/creates the selection.
 ///   Once there are annotations, clicking outside no longer starts a new selection.
+/// - Before there's a selection, hovering highlights the window under the cursor and a click
+///   (no drag) selects it.
 @MainActor
 final class CaptureSession {
-    let displays: [CapturedDisplay]
+    /// A display's image changes when a covered window is brought to the front.
+    private(set) var displays: [CapturedDisplay]
     let document = AnnotationDocument()
     let pixelateCache = PixelateCache()
     private(set) var activeDisplayID: CGDirectDisplayID?
@@ -24,6 +27,10 @@ final class CaptureSession {
     private(set) var isShowingCheatsheet = false
     /// A short status message drawn over the selection ("No text found").
     private(set) var notice: String?
+    /// The window a click would select, while there's no selection yet.
+    private(set) var hoveredWindow: (displayID: CGDirectDisplayID, window: SnapWindow)?
+    /// The window under the mouse-down; a click that doesn't become a drag selects it.
+    private var snapTarget: SnapWindow?
 
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
@@ -32,6 +39,8 @@ final class CaptureSession {
 
     /// Called after any change so every overlay can redraw.
     var onChange: (@MainActor () -> Void)?
+    /// A click selected a window that others cover: its own content has to be captured.
+    var onSnapToCoveredWindow: (@MainActor (_ displayID: CGDirectDisplayID, _ window: SnapWindow) -> Void)?
     /// Asks the overlay of a display to start text entry at a display-local point.
     var onRequestTextEntry: (@MainActor (_ displayID: CGDirectDisplayID, _ point: CGPoint) -> Void)?
 
@@ -94,11 +103,25 @@ final class CaptureSession {
         selectedAnnotationID.flatMap { id in visibleAnnotations.first { $0.id == id } }
     }
 
+    func hoveredWindow(on id: CGDirectDisplayID) -> CGRect? {
+        hoveredWindow?.displayID == id ? hoveredWindow?.window.visibleFrame : nil
+    }
+
     // MARK: Mouse
+
+    func mouseMoved(on id: CGDirectDisplayID, to point: CGPoint) {
+        let window = hasSelection || isShowingCheatsheet ? nil : display(id)?.window(at: point)
+        let hovered = window.map { (displayID: id, window: $0) }
+        guard hovered?.displayID != hoveredWindow?.displayID || hovered?.window != hoveredWindow?.window else { return }
+        hoveredWindow = hovered
+        notify()
+    }
 
     func mouseDown(on id: CGDirectDisplayID, at point: CGPoint) {
         guard editors[id] != nil else { return }
         notice = nil
+        hoveredWindow = nil
+        snapTarget = nil
         // The cheatsheet covers the selection, so a click only closes it.
         if isShowingCheatsheet {
             hideCheatsheet()
@@ -140,6 +163,8 @@ final class CaptureSession {
             return
         }
 
+        // Only from a fresh start: with a selection, a click outside clears it, as before.
+        snapTarget = hasSelection ? nil : display(id)?.window(at: point)
         if let active = activeDisplayID, active != id {
             editors[active]?.clear()
         }
@@ -178,7 +203,30 @@ final class CaptureSession {
             document.update(moved, actionName: "Move \(moved.name)")
         } else {
             editors[id]?.mouseUp(at: point)
+            // Too small to be a drag: a click, which selects the window under it.
+            if let snapTarget, editors[id]?.selection == nil {
+                snap(to: snapTarget, on: id)
+            }
         }
+        snapTarget = nil
+        notify()
+    }
+
+    private func snap(to window: SnapWindow, on id: CGDirectDisplayID) {
+        editors[id]?.select(window.visibleFrame)
+        if display(id)?.isCovered(window) == true {
+            onSnapToCoveredWindow?(id, window)
+        }
+    }
+
+    /// Paints a window's own capture over the frozen display, so the selection shows (and
+    /// exports) all of it rather than the windows that covered it.
+    func bringToFront(_ window: SnapWindow, image: CGImage, on id: CGDirectDisplayID) {
+        guard let index = displays.firstIndex(where: { $0.displayID == id }),
+            let composed = displays[index].bringingToFront(window, image: image)
+        else { return }
+        displays[index] = composed
+        pixelateCache.removeAll()
         notify()
     }
 

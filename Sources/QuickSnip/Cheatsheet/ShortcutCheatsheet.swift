@@ -35,7 +35,7 @@ struct ShortcutCheatsheet: Equatable, Sendable {
     static let overlay = ShortcutCheatsheet(sections: captureSections)
 
     private static let captureSections: [Section] = [
-        Section(title: "While capturing", entries: entries(for: captureCommands)),
+        Section(title: "While capturing", entries: entries(for: captureCommands), note: "Click a window to select it."),
         Section(
             title: "Tools",
             entries: entries(for: AnnotationTool.allCases.map(OverlayCommand.selectTool)),

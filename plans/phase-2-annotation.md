@@ -20,7 +20,7 @@
 - [x] Actions wired: Copy, Save, Cancel (toolbar + keys)
 - [x] Unit tests: model, builder, document/undo, geometry, renderer (pixel checks incl. Retina stroke width), pixelate, layout, toolbar, session routing, view text entry
 - [x] Integration tests: rectangle, arrow, pixelate, text, undo/redo, move + delete, pen + marker + save, resize after annotating, cancel
-- [ ] Manual check on real hardware
+- [x] Manual check on real hardware (2026-10-14)
 
 ## Decisions
 

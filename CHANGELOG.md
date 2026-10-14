@@ -10,6 +10,10 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ## [Unreleased]
 
+### Added
+
+- **Window snap**: before you drag, the window under the pointer is highlighted; click to select exactly that window, even when other windows cover part of it
+
 ## [0.1.2] - 2026-10-14
 
 ### Added
