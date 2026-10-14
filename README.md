@@ -4,6 +4,7 @@ A fast screenshot tool for macOS. Press a hotkey, the screen freezes, drag to se
 
 - Lives in the menu bar (the icon can be hidden)
 - Freezes every display first, so menus, tooltips and moving windows are captured as they were
+- Drag over any area, or click a window to capture just that window
 - Annotate with rectangles, arrows, lines, pen, marker, text and pixelate
 - Read the text in any capture, recognized on your Mac, and copy what you need
 - Copies or saves at full Retina resolution

@@ -37,6 +37,11 @@ final class PixelateCache {
         return result
     }
 
+    /// The source pixels changed (a window was brought to the front).
+    func removeAll() {
+        images.removeAll()
+    }
+
     static func pixelate(_ image: CGImage, blockSize: CGFloat) -> CGImage? {
         let input = CIImage(cgImage: image)
         let filter = CIFilter.pixellate()

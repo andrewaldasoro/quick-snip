@@ -39,6 +39,8 @@ struct ScreenCaptureKitCapturer: DisplayCapturing {
         // Keep QuickSnip's own windows (thumbnail, settings, onboarding) out of the capture.
         let ownProcessID = ProcessInfo.processInfo.processIdentifier
         let ownApps = content.applications.filter { $0.processID == ownProcessID }
+        let windows = Self.onScreenWindows()
+        let primaryScreenHeight = WindowSnap.primaryScreenHeight(of: screens.map(\.frame))
 
         var captured: [CapturedDisplay] = []
         for screen in screens {
@@ -52,10 +54,18 @@ struct ScreenCaptureKitCapturer: DisplayCapturing {
             configuration.captureResolution = .best
 
             let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-            captured.append(CapturedDisplay(displayID: screen.displayID, frame: screen.frame, image: image))
+            let snapFrames = WindowSnap.localFrames(
+                of: windows, on: screen.frame, primaryScreenHeight: primaryScreenHeight, excluding: ownProcessID)
+            captured.append(CapturedDisplay(displayID: screen.displayID, frame: screen.frame, image: image, windows: snapFrames))
         }
 
         guard !captured.isEmpty else { throw CaptureError.noDisplays }
         return captured
+    }
+
+    /// Front to back. `SCShareableContent` doesn't promise an order; the window list does.
+    private static func onScreenWindows() -> [WindowInfo] {
+        let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        return (entries ?? []).compactMap(WindowInfo.init)
     }
 }

@@ -39,6 +39,16 @@ struct PixelateCacheTests {
         #expect(cache.count == 2)
     }
 
+    @Test func removeAllEmptiesTheCache() {
+        let cache = PixelateCache()
+        let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), scale: 1)
+        _ = cache.image(for: display, pixelRect: CGRect(x: 0, y: 0, width: 10, height: 10))
+
+        cache.removeAll()
+
+        #expect(cache.count == 0)
+    }
+
     @Test func cacheIsBounded() {
         let cache = PixelateCache()
         let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), scale: 1)

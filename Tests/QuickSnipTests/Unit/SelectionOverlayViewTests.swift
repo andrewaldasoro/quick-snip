@@ -51,6 +51,57 @@ struct SelectionOverlayViewTests {
         #expect(outside.r < 200)
     }
 
+    @Test func hoveredWindowIsUndimmed() throws {
+        let image = TestImages.solidImage(width: 100, height: 80, color: white)
+        let window = CGRect(x: 40, y: 30, width: 50, height: 40)
+        let snap = SnapWindow(id: 1, frame: window, visibleFrame: window)
+        let display = CapturedDisplay(displayID: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), image: image, windows: [snap])
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+
+        session.mouseMoved(on: 1, to: CGPoint(x: 60, y: 50))
+
+        let rendered = try render(view)
+        let scale = rendered.width / 100
+        #expect(TestImages.pixel(rendered, x: 65 * scale, y: 50 * scale) == white)
+        #expect(TestImages.pixel(rendered, x: 10 * scale, y: 10 * scale).r < 200)
+        #expect(TestImages.pixel(rendered, x: 40 * scale + 1, y: 50 * scale) != white)  // the outline
+    }
+
+    @Test func mouseMovesReachTheSession() throws {
+        let image = TestImages.solidImage(width: 100, height: 80, color: white)
+        let window = CGRect(x: 40, y: 30, width: 50, height: 40)
+        let snap = SnapWindow(id: 1, frame: window, visibleFrame: window)
+        let display = CapturedDisplay(displayID: 1, frame: CGRect(x: 0, y: 0, width: 100, height: 80), image: image, windows: [snap])
+        let session = CaptureSession(displays: [display])
+        let view = SelectionOverlayView(display: display, session: session) { _ in }
+        // y 40 is the vertical middle, so it's the same point flipped or not.
+        let event = try #require(
+            NSEvent.mouseEvent(
+                with: .mouseMoved, location: CGPoint(x: 60, y: 40), modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                eventNumber: 0, clickCount: 0, pressure: 0))
+
+        view.mouseMoved(with: event)
+
+        #expect(session.hoveredWindow(on: 1) == window)
+    }
+
+    @Test func drawsTheWindowBroughtToFront() throws {
+        let (view, session) = makeView()
+        let window = SnapWindow(
+            id: 1, frame: CGRect(x: 20, y: 20, width: 60, height: 40), visibleFrame: CGRect(x: 20, y: 20, width: 60, height: 40))
+        TestSessions.select(session, on: 1, CGRect(x: 10, y: 10, width: 80, height: 60))
+        let red = RGBA(r: 255, g: 0, b: 0, a: 255)
+
+        session.bringToFront(window, image: TestImages.solidImage(width: 60, height: 40, color: red), on: 1)
+
+        let rendered = try render(view)
+        let scale = rendered.width / 100
+        let pixel = TestImages.pixel(rendered, x: 70 * scale, y: 50 * scale)
+        #expect(pixel.r > 200 && pixel.g < 60, "drawn through color management, so only roughly red")
+        #expect(view.display.image === session.display(1)?.image)
+    }
+
     @Test func selectionIsDrawnTopDown() throws {
         // Selection in the bottom half (flipped coordinates) must render in the bottom half.
         // If y were inverted it would cover y 5…40 instead.

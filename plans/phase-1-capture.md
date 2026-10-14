@@ -15,7 +15,7 @@
 - [x] Save to Desktop as `QuickSnip yyyy-MM-dd at HH.mm.ss.png`, never overwrites (`ScreenshotSaver`)
 - [x] Unit tests: crop math (1x/2x/1.5x/non-uniform, tiling, clamping), selection editing, session, controller, key map, view rendering, panels
 - [x] Integration tests: hotkey → select → copy (Retina + 1x external), switch displays, adjust then copy, save, cancel, no permission
-- [ ] Manual check on real hardware (multi-display, mixed DPI, full-screen app, Spaces)
+- [x] Manual check on real hardware (2026-10-14) (multi-display, mixed DPI, full-screen app, Spaces)
 
 ## Deferred to Phase 3
 

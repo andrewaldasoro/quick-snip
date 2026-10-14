@@ -223,3 +223,29 @@ final class SpyRecognizedText: RecognizedTextPresenting {
     private(set) var shown: [String] = []
     func show(_ text: String) { shown.append(text) }
 }
+
+/// Window captures that finish when the test says so; records what was asked for.
+@MainActor
+final class GatedWindowCapturer: WindowImageCapturing {
+    private var result: Result<CGImage, TestError>?
+    private var waiting: CheckedContinuation<Result<CGImage, TestError>, Never>?
+    private(set) var requests: [(id: CGWindowID, pixelSize: CGSize)] = []
+
+    func captureWindow(_ id: CGWindowID, pixelSize: CGSize) async throws -> CGImage {
+        requests.append((id, pixelSize))
+        let result = await withCheckedContinuation { continuation in
+            if let result = self.result { continuation.resume(returning: result) } else { waiting = continuation }
+        }
+        return try result.get()
+    }
+
+    /// Finishes the current (or next) capture with `result`.
+    func finish(with result: Result<CGImage, TestError>) {
+        if let waiting {
+            self.waiting = nil
+            waiting.resume(returning: result)
+        } else {
+            self.result = result
+        }
+    }
+}

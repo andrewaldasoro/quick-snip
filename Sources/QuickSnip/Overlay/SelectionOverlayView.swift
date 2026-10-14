@@ -7,34 +7,41 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
     static let borderColor = NSColor.white
     static let handleSize: CGFloat = 7
+    static let hoveredWindowBorderWidth: CGFloat = 3
     /// Horizontal padding NSTextField adds before its text (line fragment padding).
     static let textFieldInset: CGFloat = 2
 
-    let display: CapturedDisplay
     private let session: CaptureSession
     private let onCommand: @MainActor (OverlayCommand) -> Void
-    private let frozenImage: NSImage
+    /// The display as first captured; the session's copy replaces it once a window is brought to the front.
+    private let capturedDisplay: CapturedDisplay
+    private var frozenImage: NSImage
+    private var frozenSource: CGImage
 
     private(set) var toolbar: AnnotationToolbar?
     private(set) var textField: NSTextField?
     private var textOrigin: CGPoint = .zero
 
     init(display: CapturedDisplay, session: CaptureSession, onCommand: @escaping @MainActor (OverlayCommand) -> Void) {
-        self.display = display
+        capturedDisplay = display
         self.session = session
         self.onCommand = onCommand
         frozenImage = NSImage(cgImage: display.image, size: display.frame.size)
+        frozenSource = display.image
         super.init(frame: display.localBounds)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Screenshot area selection")
-        setAccessibilityHelp("Drag to select an area. Return copies, Command-S saves, Escape cancels, question mark lists all shortcuts.")
+        setAccessibilityHelp(
+            "Drag to select an area, or click a window. Return copies, Command-S saves, Escape cancels, question mark lists all shortcuts.")
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
     }
+
+    var display: CapturedDisplay { session.display(capturedDisplay.displayID) ?? capturedDisplay }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -76,6 +83,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        session.mouseMoved(on: display.displayID, to: localPoint(of: event))
         updateCursor(for: event)
     }
 
@@ -145,6 +153,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func drawCapture() {
+        if frozenSource !== display.image {
+            frozenSource = display.image
+            frozenImage = NSImage(cgImage: display.image, size: display.frame.size)
+        }
         frozenImage.draw(
             in: bounds,
             from: .zero,
@@ -155,15 +167,19 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         )
 
         let selection = session.selection(on: display.displayID)
+        let hoveredWindow = session.hoveredWindow(on: display.displayID)
 
         let dim = NSBezierPath(rect: bounds)
-        if let selection, !selection.isEmpty {
-            dim.append(NSBezierPath(rect: selection))
+        if let hole = selection.flatMap({ $0.isEmpty ? nil : $0 }) ?? hoveredWindow {
+            dim.append(NSBezierPath(rect: hole))
             dim.windingRule = .evenOdd
         }
         Self.dimColor.setFill()
         dim.fill()
 
+        if let hoveredWindow, selection == nil {
+            drawHoveredWindow(hoveredWindow)
+        }
         guard let selection, !selection.isEmpty else { return }
         if isActiveDisplay {
             drawAnnotations(clippedTo: selection)
@@ -201,6 +217,15 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             NSColor.white.setStroke()
             outline.stroke()
         }
+    }
+
+    /// What a click would select: the window, outlined in the accent color.
+    private func drawHoveredWindow(_ frame: CGRect) {
+        let inset = Self.hoveredWindowBorderWidth / 2
+        let border = NSBezierPath(rect: frame.insetBy(dx: inset, dy: inset))
+        border.lineWidth = Self.hoveredWindowBorderWidth
+        NSColor.controlAccentColor.setStroke()
+        border.stroke()
     }
 
     private func drawBorder(_ selection: CGRect) {

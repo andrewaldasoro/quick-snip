@@ -33,6 +33,8 @@ final class CaptureController {
         case edited
         case ignored
         case recognizing
+        /// Runs once the snapped window's own capture is in.
+        case waiting
     }
 
     static let recognizingNotice = "Reading text…"
@@ -48,6 +50,7 @@ final class CaptureController {
     private let thumbnails: (any ThumbnailPresenting)?
     private let textRecognizer: any TextRecognizing
     private let recognizedText: (any RecognizedTextPresenting)?
+    private let coveredWindows: CoveredWindowLoader?
 
     private(set) var session: CaptureSession?
     /// Text recognition for Read Text, while it runs.
@@ -63,7 +66,8 @@ final class CaptureController {
         settings: AppSettings? = nil,
         thumbnails: (any ThumbnailPresenting)? = nil,
         textRecognizer: any TextRecognizing = FallbackTextRecognizer.vision,
-        recognizedText: (any RecognizedTextPresenting)? = nil
+        recognizedText: (any RecognizedTextPresenting)? = nil,
+        windowCapturer: (any WindowImageCapturing)? = nil
     ) {
         self.capturer = capturer
         self.presenter = presenter
@@ -73,7 +77,11 @@ final class CaptureController {
         self.thumbnails = thumbnails
         self.textRecognizer = textRecognizer
         self.recognizedText = recognizedText
+        coveredWindows = windowCapturer.map(CoveredWindowLoader.init)
     }
+
+    /// The covered window's capture in flight, if any.
+    var windowCaptureTask: Task<Void, Never>? { coveredWindows?.task }
 
     var isActive: Bool { session != nil || isCapturing }
 
@@ -90,6 +98,10 @@ final class CaptureController {
                 return
             }
             let session = CaptureSession(displays: displays)
+            session.onSnapToCoveredWindow = { [weak self, weak session] displayID, window in
+                guard let session else { return }
+                self?.coveredWindows?.load(window, on: displayID, into: session)
+            }
             self.session = session
             presenter.present(session) { [weak self] command in
                 self?.handle(command)
@@ -110,6 +122,15 @@ final class CaptureController {
     func handle(_ command: OverlayCommand) -> Outcome {
         // A notice answers the last action; the next one replaces it (unless text is still being read).
         if recognitionTask == nil { session?.clearNotice() }
+
+        // Copying before the window's own capture is in would copy whatever covered it.
+        if let pending = windowCaptureTask, [.copy, .save, .readText].contains(command) {
+            Task { [weak self] in
+                await pending.value
+                self?.handle(command)
+            }
+            return .waiting
+        }
 
         switch command {
         case .cancel:
@@ -239,6 +260,7 @@ final class CaptureController {
     }
 
     private func finish() {
+        coveredWindows?.cancel()
         recognitionTask?.cancel()
         recognitionTask = nil
         presenter.dismiss()

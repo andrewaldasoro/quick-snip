@@ -26,7 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         saver: ScreenshotSaver(directory: settings.saveDirectory),
         settings: settings,
         thumbnails: ThumbnailPanelController(),
-        recognizedText: RecognizedTextWindowController(clipboard: SystemClipboard())
+        recognizedText: RecognizedTextWindowController(clipboard: SystemClipboard()),
+        windowCapturer: ScreenCaptureKitWindowCapturer()
     )
     private lazy var coordinator = CaptureCoordinator(
         permission: permission,
