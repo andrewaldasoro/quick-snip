@@ -10,9 +10,17 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-14
+
 ### Added
 
 - **Read Text** (⇧⌘C, or the text button in the toolbar): reads the text in the selection and opens it in a window, where you can fix a misread word, then copy all of it or just the part you select. Recognition runs on your Mac with Apple's Vision; anything you pixelated stays unreadable
+
+## [0.1.1] - 2026-10-13
+
+### Changed
+
+- New landing page
 
 ## [0.1.0] - 2026-10-13
 
@@ -29,5 +37,7 @@ First release.
 - Settings: shortcut, save folder, PNG or JPEG, thumbnail, menu bar icon, launch at login
 - Automatic updates (asks first; signed updates only)
 
-[Unreleased]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/andrewaldasoro/quick-snip/releases/tag/v0.1.0
