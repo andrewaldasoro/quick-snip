@@ -27,7 +27,7 @@ swift scripts/make-icon.swift <dir>.iconset && iconutil -c icns <dir>.iconset -o
 
 - Full Xcode must be the selected developer dir (`xcode-select -p`). The Command Line Tools can't build this: the macOS 27 SDK's SwiftUI `@State` macro plugin ships only with Xcode.
 - Use `/usr/bin/log`. In zsh, a bare `log` runs a shell builtin instead.
-- Version control is Jujutsu colocated with git (`.jj/`). Prefer `jj` commands.
+- Version control is Jujutsu colocated with git (`.jj/`). Prefer `jj` commands. PRs are squash-merged and their branch deleted; after a merge, flatten local history with `jj git fetch && jj new main` (rebase any unmerged change onto `main` with `jj rebase -s <change> -d main`).
 
 ## CI, dependencies and security
 
