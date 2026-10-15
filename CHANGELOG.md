@@ -10,6 +10,10 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-14
+
+First stable release.
+
 ### Added
 
 - **Window snap**: before you drag, the window under the pointer is highlighted; click to select exactly that window, even when other windows cover part of it
@@ -41,7 +45,8 @@ First release.
 - Settings: shortcut, save folder, PNG or JPEG, thumbnail, menu bar icon, launch at login
 - Automatic updates (asks first; signed updates only)
 
-[Unreleased]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/andrewaldasoro/quick-snip/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.2...v1.0.0
 [0.1.2]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/andrewaldasoro/quick-snip/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/andrewaldasoro/quick-snip/releases/tag/v0.1.0
