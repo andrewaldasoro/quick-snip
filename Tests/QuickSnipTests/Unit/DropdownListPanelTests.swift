@@ -175,6 +175,26 @@ struct DropdownListSizingTests {
 }
 
 @MainActor
+struct DropdownListClippingTests {
+    /// Regression: the table was wider than the visible list, so each highlight's right end
+    /// (and its rounded corners) was clipped off.
+    @Test(arguments: [
+        AnnotationColor.allCases.map(StyleValue.color), LineWidth.presets.map(StyleValue.lineWidth),
+        TextSize.presets.map(StyleValue.fontSize),
+    ])
+    func rowsFitInsideTheVisibleList(values: [StyleValue]) throws {
+        let panel = DropdownListPanel(values: values, current: values.first, isSearchable: false, onPick: { _ in }, onClose: {})
+        let window = NSWindow(
+            contentRect: CGRect(origin: .zero, size: panel.preferredSize), styleMask: .borderless, backing: .buffered, defer: true)
+        window.contentView = panel
+        panel.layoutSubtreeIfNeeded()
+        let visible = try #require(panel.scroll?.contentView.bounds)
+        let row = try #require(panel.table.rowView(atRow: 0, makeIfNecessary: true))
+        #expect(row.frame.width <= visible.width + 0.5, "row \(row.frame.width) vs visible \(visible.width)")
+    }
+}
+
+@MainActor
 struct DropdownRowViewTests {
     private func render(_ view: NSView) throws -> CGImage {
         let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))

@@ -64,6 +64,13 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         return CGSize(width: max(minimumWidth, ceil(widest) + rowPadding * 2 + padding * 2), height: height)
     }
 
+    /// The column starts at NSTableColumn's default 100 pt, wider than a short list, which
+    /// clipped each highlight's right end; keep it exactly as wide as the visible list.
+    override func layout() {
+        super.layout()
+        table.sizeLastColumnToFit()
+    }
+
     /// The field to focus when the list opens: the search field, or the list itself.
     var initialFirstResponder: NSView {
         searchField ?? table
