@@ -1,7 +1,8 @@
 import AppKit
 
 /// Full-screen view for one display: frozen image, dimming outside the selection, annotations,
-/// border, handles, size label, the annotation toolbar, the font list, and inline text entry.
+/// border, handles, size label, the annotation toolbar and style panel, an open dropdown list,
+/// and inline text entry.
 /// Flipped, so local points match `CaptureSession`.
 final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
@@ -23,7 +24,9 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     private(set) var textField: NSTextField?
     private var textOrigin: CGPoint = .zero
     private let fontFamilies: FontFamilyProviding
-    private(set) var fontList: FontListPanel?
+    private(set) var stylePanel: StylePanel?
+    /// The open style dropdown, if any.
+    private(set) var dropdown: (list: StyleList, panel: DropdownListPanel)?
 
     init(
         display: CapturedDisplay, session: CaptureSession, fontFamilies: FontFamilyProviding = SystemFontFamilies(),
@@ -67,10 +70,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             ))
     }
 
-    /// Cursor for a point in this view; the toolbar and font list always get an arrow.
+    /// Cursor for a point in this view; the toolbar, style panel and dropdown get an arrow.
     func cursor(at point: CGPoint) -> OverlayCursor {
-        if let toolbar, !toolbar.isHidden, toolbar.frame.contains(point) { return .arrow }
-        if let fontList, fontList.frame.contains(point) { return .arrow }
+        let controls: [NSView?] = [toolbar, stylePanel, dropdown?.panel]
+        if controls.contains(where: { $0.map { !$0.isHidden && $0.frame.contains(point) } ?? false }) { return .arrow }
         return session.cursor(on: display.displayID, at: point)
     }
 
@@ -99,7 +102,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
 
     // MARK: Session updates
 
-    /// Redraws and shows, hides, or repositions the toolbar.
+    /// Redraws and shows, hides, or repositions the toolbar and style panel.
     func sessionDidChange() {
         needsDisplay = true
 
@@ -107,23 +110,45 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             !session.isShowingCheatsheet
         else {
             toolbar?.isHidden = true
-            closeFontList()
+            stylePanel?.isHidden = true
+            closeDropdown()
             return
         }
-        if !session.showsTextStyle { closeFontList() }
         let toolbar = self.toolbar ?? makeToolbar()
         toolbar.update(
             tool: session.tool,
             style: session.style,
-            textStyle: session.showsTextStyle ? session.textStyle : nil,
-            isShowingFontList: fontList != nil,
             canUndo: session.document.canUndo,
             canRedo: session.document.canRedo
         )
         toolbar.frame = ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds)
         toolbar.isHidden = false
-        // Placed against the toolbar the way the toolbar is placed against the selection.
-        fontList?.frame = ToolbarLayout.frame(size: FontListPanel.size, selection: toolbar.frame, bounds: bounds)
+        updateStylePanel(toolbar: toolbar.frame, selection: selection)
+    }
+
+    private func updateStylePanel(toolbar: CGRect, selection: CGRect) {
+        guard let options = session.styleOptions else {
+            stylePanel?.isHidden = true
+            closeDropdown()
+            return
+        }
+        if let dropdown, StyleChoices.current(for: dropdown.list, options: options) == nil { closeDropdown() }
+        let panel = stylePanel ?? makeStylePanel()
+        panel.update(options: options, openList: dropdown?.list)
+        panel.frame = StylePanelLayout.frame(size: panel.fittingSize, toolbar: toolbar, selection: selection, bounds: bounds)
+        panel.isHidden = false
+        if let dropdown, let button = panel.buttons[dropdown.list] {
+            // The buttons only have frames after a layout pass; the list hangs off one.
+            panel.layoutSubtreeIfNeeded()
+            dropdown.panel.frame = dropdownFrame(size: dropdown.panel.frame.size, below: button)
+        }
+    }
+
+    private func makeStylePanel() -> StylePanel {
+        let panel = StylePanel { [weak self] list, _ in self?.toggleDropdown(list) }
+        addSubview(panel)
+        stylePanel = panel
+        return panel
     }
 
     private func makeToolbar() -> AnnotationToolbar {
@@ -136,21 +161,6 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
                 selectColor: { [weak self] color in
                     self?.session.setColor(color)
                     self?.restoreFocus()
-                },
-                selectWidth: { [weak self] width in
-                    self?.session.setWidth(width)
-                    self?.restoreFocus()
-                },
-                selectFont: { [weak self] font in
-                    self?.session.setFont(font)
-                    self?.restoreFocus()
-                },
-                selectFontSize: { [weak self] size in
-                    self?.session.setFontSize(size)
-                    self?.restoreFocus()
-                },
-                toggleFontList: { [weak self] in
-                    self?.toggleFontList()
                 },
                 command: { [weak self] command in
                     self?.onCommand(command)
@@ -167,43 +177,63 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         if textField == nil { window?.makeFirstResponder(self) }
     }
 
-    /// Typing goes to a text field (annotation text, size, font search), not to shortcuts.
+    /// Typing goes to a text field (annotation text, font search), not to shortcuts.
     private var isTyping: Bool {
         textField != nil || window?.firstResponder is NSText
     }
 
-    // MARK: Font list
+    // MARK: Dropdowns
 
-    func toggleFontList() {
-        if fontList != nil {
-            closeFontList()
-        } else {
-            openFontList()
+    /// Opens a style dropdown's list under its button; the open one closes instead.
+    func toggleDropdown(_ list: StyleList) {
+        let wasOpen = dropdown?.list == list
+        closeDropdown()
+        if !wasOpen { openDropdown(list) }
+    }
+
+    private func openDropdown(_ list: StyleList) {
+        guard let options = session.styleOptions else { return }
+        let families = StyleChoices.isSearchable(list) ? FontCatalog(provider: fontFamilies).families : []
+        let panel = DropdownListPanel(
+            values: StyleChoices.values(for: list, options: options, fontFamilies: families),
+            current: StyleChoices.current(for: list, options: options),
+            isSearchable: StyleChoices.isSearchable(list),
+            onPick: { [weak self] value in self?.apply(value) },
+            onClose: { [weak self] in self?.closeDropdown() }
+        )
+        addSubview(panel)
+        dropdown = (list, panel)
+        sessionDidChange()
+        window?.makeFirstResponder(panel.initialFirstResponder)
+    }
+
+    private func apply(_ value: StyleValue) {
+        closeDropdown()
+        switch value {
+        case .lineWidth(let width): session.setLineWidth(width)
+        case .font(let font): session.setFont(font)
+        case .fontSize(let size): session.setFontSize(size)
         }
     }
 
-    private func openFontList() {
-        let panel = FontListPanel(
-            catalog: FontCatalog(provider: fontFamilies),
-            current: session.textStyle.font,
-            onPick: { [weak self] family in
-                self?.session.setFont(.family(family))
-                self?.closeFontList()
-            },
-            onClose: { [weak self] in self?.closeFontList() }
-        )
-        addSubview(panel)
-        fontList = panel
-        sessionDidChange()
-        window?.makeFirstResponder(panel.searchField)
+    func closeDropdown() {
+        guard let open = dropdown else { return }
+        dropdown = nil
+        open.panel.removeFromSuperview()
+        stylePanel?.markOpen(nil)
+        restoreFocus()
     }
 
-    func closeFontList() {
-        guard let panel = fontList else { return }
-        fontList = nil
-        panel.removeFromSuperview()
-        restoreFocus()
-        sessionDidChange()
+    /// Under its button, left-aligned like a pop-up menu; above it when there's no room below.
+    private func dropdownFrame(size: CGSize, below button: NSView) -> CGRect {
+        let anchor = convert(button.bounds, from: button)
+        let margin = ToolbarLayout.margin
+        let x = min(max(anchor.minX, bounds.minX + margin), bounds.maxX - margin - size.width)
+        let below = anchor.maxY + StylePanelLayout.gap
+        let y =
+            below + size.height <= bounds.maxY - margin
+            ? below : max(bounds.minY + margin, anchor.minY - StylePanelLayout.gap - size.height)
+        return CGRect(x: x, y: y, width: size.width, height: size.height)
     }
 
     // MARK: Drawing
@@ -425,9 +455,9 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             commitTextEntry()
             return
         }
-        // A click outside the font list only closes it, like the cheatsheet.
-        if fontList != nil {
-            closeFontList()
+        // A click outside an open dropdown only closes it, like a menu.
+        if dropdown != nil {
+            closeDropdown()
             return
         }
         session.mouseDown(on: display.displayID, at: localPoint(of: event))
@@ -468,10 +498,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         return super.performKeyEquivalent(with: event)
     }
 
-    /// Esc closes the font list before it cancels the capture.
+    /// Esc closes an open dropdown before it cancels the capture.
     private func perform(_ command: OverlayCommand) {
-        if command == .cancel, fontList != nil {
-            closeFontList()
+        if command == .cancel, dropdown != nil {
+            closeDropdown()
             return
         }
         onCommand(command)

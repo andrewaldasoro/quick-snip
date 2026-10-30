@@ -10,6 +10,13 @@ Pick the step by how big the change is for users:
 
 Each release's section becomes its GitHub release notes, so write it for users. Every pull request with user-facing changes adds its own `## [x.y.z] - YYYY-MM-DD` section, one step after the last release; merging it to `main` tags and publishes that version. Pull requests without user-facing changes add nothing and release nothing.
 
+## [1.2.0] - 2026-10-30
+
+### Changed
+
+- **Style panel**: line width, font and text size moved out of the toolbar into a small panel next to it, with dropdowns. Shapes get 1 to 16 px line widths; text gets every font (searchable) and sizes from 10 to 96 px. It shows for the tool you picked or the annotation you selected, beside the toolbar, or under it when the selection is narrow
+- After you draw a shape or place text, the tool turns off and the new annotation stays selected, so you can resize, move or restyle it right away
+
 ## [1.1.0] - 2026-10-30
 
 ### Added

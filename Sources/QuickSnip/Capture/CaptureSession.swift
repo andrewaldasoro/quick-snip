@@ -115,14 +115,25 @@ final class CaptureSession {
         return AnnotationResizer.hitTest(point, on: selected)
     }
 
-    /// The text tool is active or a text annotation is selected: the toolbar offers font and size.
-    var showsTextStyle: Bool {
-        tool == .text || selectedTextStyle != nil
+    /// What the style panel shows: the selected annotation's style, otherwise what the active
+    /// tool will draw with. Nil when there's neither, or for pixelate, which has no style.
+    var styleOptions: StyleOptions? {
+        if let selected = selectedAnnotation {
+            return Self.options(for: selected.kind, style: selected.style)
+        }
+        switch tool {
+        case nil, .pixelate: return nil
+        case .text: return .text(font: style.font, size: style.fontSize)
+        default: return .stroke(lineWidth: style.lineWidth)
+        }
     }
 
-    /// Font and size the toolbar shows: the selected text's, otherwise what new text gets.
-    var textStyle: AnnotationStyle {
-        selectedTextStyle ?? style
+    private static func options(for kind: AnnotationKind, style: AnnotationStyle) -> StyleOptions? {
+        switch kind {
+        case .pixelate: nil
+        case .text: .text(font: style.font, size: style.fontSize)
+        case .rectangle, .line, .arrow, .pen, .marker: .stroke(lineWidth: style.lineWidth)
+        }
     }
 
     private var selectedTextStyle: AnnotationStyle? {
@@ -230,6 +241,7 @@ final class CaptureSession {
             draft = nil
             if let annotation = builder.finish() {
                 document.add(annotation)
+                selectJustAdded(annotation)
             }
         } else if let move {
             self.move = nil
@@ -293,9 +305,12 @@ final class CaptureSession {
         notify()
     }
 
-    func setWidth(_ width: StrokeWidth) {
-        style.width = width
-        restyleSelectedAnnotation { $0.width = width }
+    /// Applies to new shapes and to the selected one (not text or pixelate, which have no line).
+    func setLineWidth(_ width: CGFloat) {
+        style.lineWidth = width
+        if case .stroke = styleOptions {
+            restyleSelectedAnnotation { $0.lineWidth = width }
+        }
         notify()
     }
 
@@ -317,7 +332,16 @@ final class CaptureSession {
     func addText(_ text: String, at origin: CGPoint, on id: CGDirectDisplayID) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, id == activeDisplayID else { return }
-        document.add(Annotation(kind: .text(trimmed, origin: origin), style: style))
+        let annotation = Annotation(kind: .text(trimmed, origin: origin), style: style)
+        document.add(annotation)
+        selectJustAdded(annotation)
+    }
+
+    /// After drawing, the tool turns off and the new annotation is selected, so its handles
+    /// and the style panel work on it right away.
+    private func selectJustAdded(_ annotation: Annotation) {
+        tool = nil
+        selectedAnnotationID = annotation.id
     }
 
     @discardableResult

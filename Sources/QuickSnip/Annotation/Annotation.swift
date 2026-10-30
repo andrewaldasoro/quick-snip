@@ -35,21 +35,10 @@ enum AnnotationColor: String, CaseIterable, Sendable {
     }
 }
 
-enum StrokeWidth: String, CaseIterable, Sendable {
-    case thin, medium, thick
-
-    var lineWidth: CGFloat {
-        switch self {
-        case .thin: 2
-        case .medium: 4
-        case .thick: 8
-        }
-    }
-}
-
 struct AnnotationStyle: Equatable, Sendable {
     var color: AnnotationColor = .red
-    var width: StrokeWidth = .medium
+    /// Line thickness in points, for every kind but text and pixelate.
+    var lineWidth: CGFloat = LineWidth.default
     /// Text annotations only.
     var font: TextFont = .system
     var fontSize: CGFloat = TextSize.default
@@ -96,8 +85,8 @@ struct Annotation: Identifiable, Equatable, Sendable {
 
     /// Stroke width as drawn (the marker is wider than the nominal width).
     var strokeWidth: CGFloat {
-        if case .marker = kind { return style.width.lineWidth * Self.markerWidthMultiplier }
-        return style.width.lineWidth
+        if case .marker = kind { return style.lineWidth * Self.markerWidthMultiplier }
+        return style.lineWidth
     }
 
     @MainActor

@@ -75,7 +75,7 @@ struct AnnotationResizerTests {
     }
 
     @Test func resizeKeepsIDAndStyle() {
-        let original = Annotation(kind: .rectangle(rect), style: AnnotationStyle(color: .blue, width: .thick))
+        let original = Annotation(kind: .rectangle(rect), style: AnnotationStyle(color: .blue, lineWidth: 8))
         let resized = AnnotationResizer.resized(original, dragging: .frame(.right), to: CGPoint(x: 200, y: 50))
         #expect(resized?.id == original.id)
         #expect(resized?.style == original.style)

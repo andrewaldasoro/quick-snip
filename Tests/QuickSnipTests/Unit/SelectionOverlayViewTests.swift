@@ -196,7 +196,7 @@ struct SelectionOverlayViewEditingTests {
         TestSessions.drag(session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 100, y: 100))
 
         let toolbar = try #require(view.toolbar)
-        #expect(toolbar.toolButtons[.rectangle]?.state == .on)
+        #expect(toolbar.toolButtons[.rectangle]?.state == .off)  // off once the shape is drawn
         #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
     }
 
@@ -274,7 +274,8 @@ struct SelectionOverlayViewEditingTests {
         view.cacheDisplay(in: view.bounds, to: rep)
         let image = try #require(rep.cgImage)
         let scale = image.width / 480
-        #expect(TestImages.pixel(image, x: 100 * scale, y: 100 * scale).isClose(to: .red, tolerance: 60))
+        // On the left edge, clear of the selected shape's handles.
+        #expect(TestImages.pixel(image, x: 100 * scale, y: 85 * scale).isClose(to: .red, tolerance: 60))
     }
 }
 

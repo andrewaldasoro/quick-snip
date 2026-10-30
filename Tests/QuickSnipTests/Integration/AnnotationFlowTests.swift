@@ -192,7 +192,6 @@ struct AnnotationFlowTests {
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
         app.draw(.rectangle, from: CGPoint(x: 120, y: 40), to: CGPoint(x: 160, y: 80))
-        app.session.toggleTool(.rectangle)  // back to select/move
 
         // Drag the first rectangle down by 60pt.
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 120))
@@ -212,7 +211,6 @@ struct AnnotationFlowTests {
         await app.captureAndSelect()
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
-        app.session.toggleTool(.rectangle)  // back to select/move
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
         app.overlay.send(.copy)
@@ -228,7 +226,6 @@ struct AnnotationFlowTests {
         await app.captureAndSelect()
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
-        app.session.toggleTool(.rectangle)
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
         app.overlay.send(.undo)
@@ -239,6 +236,22 @@ struct AnnotationFlowTests {
         #expect(app.pixel(image, atPoint: 160, 100) == original(atPoint: 160, 100))
     }
 
+    /// Drawing turns the tool off and selects the shape, so it can be restyled and moved at once.
+    @Test func drawThenThickenAndMoveRightAway() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 100, y: 100))
+        app.session.setLineWidth(16)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 55, y: 40), to: CGPoint(x: 85, y: 60))  // top edge, between handles
+        app.overlay.send(.copy)
+
+        let image = try app.copied()
+        #expect(app.pixel(image, atPoint: 70, 100).isClose(to: .red))  // moved left edge, 30 pt right and 20 down
+        #expect(app.pixel(image, atPoint: 64, 110).isClose(to: .red))  // 6 pt into a 16 pt stroke
+        #expect(app.pixel(image, atPoint: 40, 70) == original(atPoint: 40, 70))  // old left edge clear
+    }
+
     @Test func freehandPenAndMarkerThenSave() async throws {
         let app = launchApp()
         defer { try? FileManager.default.removeItem(at: app.saveDirectory) }
@@ -246,6 +259,8 @@ struct AnnotationFlowTests {
 
         app.session.setColor(.green)
         app.draw(.pen, from: CGPoint(x: 40, y: 40), through: [CGPoint(x: 80, y: 60), CGPoint(x: 120, y: 40)], to: CGPoint(x: 160, y: 60))
+        // Pick the tool first: a color change with the pen still selected would recolor the pen.
+        app.session.toggleTool(.marker)
         app.session.setColor(.yellow)
         app.draw(.marker, from: CGPoint(x: 40, y: 150), to: CGPoint(x: 200, y: 150))
         app.overlay.send(.save)
