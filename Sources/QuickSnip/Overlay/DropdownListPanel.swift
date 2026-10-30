@@ -196,6 +196,10 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         values.count
     }
 
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        DropdownRowView()
+    }
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         Self.rowView(for: values[row])
     }

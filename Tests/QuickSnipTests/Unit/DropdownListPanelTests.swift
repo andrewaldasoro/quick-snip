@@ -135,4 +135,47 @@ struct DropdownListPanelTests {
         #expect(panel.table.columnAutoresizingStyle == .firstColumnOnlyAutoresizingStyle)
         #expect(panel.table.tableColumns.first?.resizingMask == .autoresizingMask)
     }
+
+    @Test func rowsUseTheRoundedRowView() {
+        let (panel, _) = make()
+        #expect(panel.tableView(panel.table, rowViewForRow: 0) is DropdownRowView)
+    }
+}
+
+@MainActor
+struct DropdownRowViewTests {
+    private func render(_ view: NSView) throws -> CGImage {
+        let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return try #require(rep.cgImage)
+    }
+
+    /// Regression: the selection was a square block inside the rounded dropdown.
+    @Test func selectionHasRoundedCorners() throws {
+        let row = DropdownRowView(frame: CGRect(x: 0, y: 0, width: 140, height: 26))
+        row.isSelected = true
+        row.drawSelection(in: row.bounds)
+        let image = try render(row)
+        let scale = image.width / 140
+        let top = Int(DropdownRowView.verticalInset) * scale  // first row of the fill
+        #expect(TestImages.pixel(image, x: 0, y: top).a == 0)  // its corner is rounded off
+        #expect(TestImages.pixel(image, x: image.width / 2, y: image.height / 2).a == 255)  // middle filled
+    }
+
+    @Test func selectedRowTextAndLinesTakeTheReadableForeground() {
+        let row = DropdownRowView(frame: CGRect(x: 0, y: 0, width: 140, height: 26))
+        let label = NSTextField(labelWithString: "4 px")
+        let line = NSImageView(image: DropdownListPanel.linePreview(width: 4))
+        let swatch = NSImageView(image: DropdownListPanel.colorSwatch(.red))
+        let stack = NSStackView(views: [line, swatch, label])
+        row.addSubview(stack)
+
+        row.isSelected = true
+        #expect(label.textColor == ToolbarButton.accentForeground)
+        #expect(line.contentTintColor == ToolbarButton.accentForeground)
+        #expect(swatch.contentTintColor == nil)
+
+        row.isSelected = false
+        #expect(label.textColor == .labelColor)
+    }
 }
