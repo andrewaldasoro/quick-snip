@@ -7,7 +7,9 @@ import Foundation
 /// Mouse routing:
 /// - Selection handles always resize the selection.
 /// - With a tool, dragging inside the selection draws (text: click to type).
-/// - Without a tool, dragging an annotation moves it; otherwise it moves/creates the selection.
+/// - Without a tool, the selected annotation's handles resize it, dragging an annotation moves
+///   it; otherwise the drag moves/creates the selection. Annotation handles win over the
+///   selection's, since the user just picked that annotation.
 ///   Once there are annotations, clicking outside no longer starts a new selection.
 /// - Before there's a selection, hovering highlights the window under the cursor and a click
 ///   (no drag) selects it.
@@ -34,7 +36,8 @@ final class CaptureSession {
 
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
-    /// In-progress drawing, or the moved copy of an annotation while dragging.
+    private var resize: (original: Annotation, handle: AnnotationHandle)?
+    /// In-progress drawing, or the moved or resized copy of an annotation while dragging.
     private var draft: Annotation?
 
     /// Called after any change so every overlay can redraw.
@@ -103,6 +106,12 @@ final class CaptureSession {
         selectedAnnotationID.flatMap { id in visibleAnnotations.first { $0.id == id } }
     }
 
+    /// The handle of the selected annotation under `point`, while no tool is active.
+    func annotationHandle(on id: CGDirectDisplayID, at point: CGPoint) -> AnnotationHandle? {
+        guard tool == nil, id == activeDisplayID, let selected = selectedAnnotation else { return nil }
+        return AnnotationResizer.hitTest(point, on: selected)
+    }
+
     func hoveredWindow(on id: CGDirectDisplayID) -> CGRect? {
         hoveredWindow?.displayID == id ? hoveredWindow?.window.visibleFrame : nil
     }
@@ -130,6 +139,12 @@ final class CaptureSession {
         let onActive = id == activeDisplayID
         let selection = onActive ? editors[id]?.selection : nil
         let hit = onActive ? hitTest(on: id, at: point) : .outside
+
+        if let handle = annotationHandle(on: id, at: point), let selected = selectedAnnotation {
+            resize = (selected, handle)
+            notify()
+            return
+        }
 
         if case .handle = hit {
             editors[id]?.mouseDown(at: point)
@@ -181,6 +196,8 @@ final class CaptureSession {
             draft = builder.annotation
         } else if let move {
             draft = move.original.offsetBy(dx: point.x - move.start.x, dy: point.y - move.start.y)
+        } else if let resize {
+            draft = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: point) ?? draft
         } else {
             editors[id]?.mouseDragged(to: point)
         }
@@ -201,6 +218,13 @@ final class CaptureSession {
             draft = nil
             let moved = move.original.offsetBy(dx: point.x - move.start.x, dy: point.y - move.start.y)
             document.update(moved, actionName: "Move \(moved.name)")
+        } else if let resize {
+            self.resize = nil
+            let resized = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: point) ?? draft
+            draft = nil
+            if let resized {
+                document.update(resized, actionName: "Resize \(resized.name)")
+            }
         } else {
             editors[id]?.mouseUp(at: point)
             // Too small to be a drag: a click, which selects the window under it.
@@ -322,6 +346,7 @@ final class CaptureSession {
         let selection = onActive ? self.selection(on: id) : nil
         return OverlayCursor.resolve(
             hit: onActive ? hitTest(on: id, at: point) : .outside,
+            annotationHandle: annotationHandle(on: id, at: point),
             tool: tool,
             insideSelection: selection?.contains(point) ?? false,
             overAnnotation: selection?.contains(point) == true && document.topmost(at: point) != nil,

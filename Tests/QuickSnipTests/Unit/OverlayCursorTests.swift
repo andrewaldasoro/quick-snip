@@ -6,6 +6,7 @@ import Testing
 struct OverlayCursorTests {
     private func resolve(
         hit: SelectionHit = .outside,
+        annotationHandle: AnnotationHandle? = nil,
         tool: AnnotationTool? = nil,
         inside: Bool = false,
         overAnnotation: Bool = false,
@@ -13,7 +14,7 @@ struct OverlayCursorTests {
         moving: Bool = false
     ) -> OverlayCursor {
         OverlayCursor.resolve(
-            hit: hit, tool: tool, insideSelection: inside, overAnnotation: overAnnotation,
+            hit: hit, annotationHandle: annotationHandle, tool: tool, insideSelection: inside, overAnnotation: overAnnotation,
             hasAnnotations: hasAnnotations, isMoving: moving
         )
     }
@@ -25,6 +26,11 @@ struct OverlayCursorTests {
     @Test func handlesShowResizeCursorsEvenWithATool() {
         #expect(resolve(hit: .handle(.topLeft)) == .resize(.topLeft))
         #expect(resolve(hit: .handle(.right), tool: .pen) == .resize(.right))
+    }
+
+    @Test func annotationHandlesShowResizeOrCrosshair() {
+        #expect(resolve(hit: .inside, annotationHandle: .frame(.left), inside: true) == .resize(.left))
+        #expect(resolve(hit: .handle(.top), annotationHandle: .end, inside: true) == .crosshair)
     }
 
     @Test func insideWithoutToolShowsOpenHand() {

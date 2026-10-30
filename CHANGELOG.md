@@ -10,6 +10,10 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ## [Unreleased]
 
+### Added
+
+- **Resize annotations**: click an annotation to select it, then drag one of its handles. Rectangles and pixelate resize from any corner or edge, lines and arrows from either end, and pen or marker strokes scale from their corners. Each resize is one undo step
+
 ## [1.0.0] - 2026-10-14
 
 First stable release.

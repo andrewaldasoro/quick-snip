@@ -180,6 +180,38 @@ struct AnnotationFlowTests {
         #expect(app.pixel(image, atPoint: 160, 60) == original(atPoint: 160, 60))  // deleted
     }
 
+    @Test func resizeARectangleByItsCornerThenUndo() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
+        app.session.toggleTool(.rectangle)  // back to select/move
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
+        app.overlay.send(.copy)
+
+        let image = try app.copied()
+        #expect(app.pixel(image, atPoint: 160, 100).isClose(to: .red))  // new right edge
+        #expect(app.pixel(image, atPoint: 100, 140).isClose(to: .red))  // new bottom edge
+        #expect(app.pixel(image, atPoint: 80, 60) == original(atPoint: 80, 60))  // old right edge clear
+    }
+
+    @Test func undoAResizeRestoresTheOriginalSize() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
+        app.session.toggleTool(.rectangle)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
+        app.overlay.send(.undo)
+        app.overlay.send(.copy)
+
+        let image = try app.copied()
+        #expect(app.pixel(image, atPoint: 80, 60).isClose(to: .red))
+        #expect(app.pixel(image, atPoint: 160, 100) == original(atPoint: 160, 100))
+    }
+
     @Test func freehandPenAndMarkerThenSave() async throws {
         let app = launchApp()
         defer { try? FileManager.default.removeItem(at: app.saveDirectory) }
