@@ -152,6 +152,87 @@ struct CaptureSessionAnnotationTests {
         #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
     }
 
+    // MARK: Resizing annotations
+
+    private func selectFirstAnnotation(_ session: CaptureSession, at point: CGPoint) {
+        session.mouseDown(on: 1, at: point)
+        session.mouseUp(on: 1, at: point)
+    }
+
+    @Test func draggingAHandleOfTheSelectedAnnotationResizesIt() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 40, y: 50))
+
+        session.mouseDown(on: 1, at: CGPoint(x: 70, y: 60))
+        session.mouseDragged(on: 1, to: CGPoint(x: 90, y: 80))
+        #expect(session.visibleAnnotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 50, height: 40)))
+        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+        session.mouseUp(on: 1, at: CGPoint(x: 100, y: 90))
+
+        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 60, height: 50)))
+        #expect(session.document.undoManager.undoActionName == "Resize Rectangle")
+        #expect(session.activeSelection == selection)
+    }
+
+    @Test func resizeIsOneUndoStep() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 40, y: 50))
+
+        TestSessions.drag(
+            session, on: 1, from: CGPoint(x: 70, y: 60), through: [CGPoint(x: 80, y: 70), CGPoint(x: 90, y: 75)], to: CGPoint(x: 100, y: 90)
+        )
+        session.undo()
+
+        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+    }
+
+    @Test func annotationHandleWinsOverTheSelectionHandle() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 100, y: 80, width: 40, height: 40))  // bottom-right corner on the selection's
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 100, y: 100))
+
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 140, y: 120), to: CGPoint(x: 120, y: 110))
+
+        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 100, y: 80, width: 20, height: 30)))
+        #expect(session.activeSelection == selection)
+    }
+
+    @Test func aCollapsingResizeKeepsTheLastValidShape() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 40, y: 50))
+
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 70, y: 60), through: [CGPoint(x: 80, y: 70)], to: CGPoint(x: 41, y: 41))
+
+        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 40, height: 30)))
+    }
+
+    @Test func handlesOnlyResizeWithoutATool() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 40, y: 50))
+        #expect(session.annotationHandle(on: 1, at: CGPoint(x: 70, y: 60)) == .frame(.bottomRight))
+        #expect(session.annotationHandle(on: 2, at: CGPoint(x: 70, y: 60)) == nil)
+
+        session.toggleTool(.line)
+        #expect(session.annotationHandle(on: 1, at: CGPoint(x: 70, y: 60)) == nil)
+    }
+
+    @Test func handleShowsAResizeCursor() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 40, y: 50))
+        #expect(session.cursor(on: 1, at: CGPoint(x: 70, y: 60)) == .resize(.bottomRight))
+    }
+
     @Test func choosingAToolClearsAnnotationSelection() {
         let session = makeSession()
         drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))

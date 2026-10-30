@@ -11,6 +11,7 @@ enum OverlayCursor: Equatable {
 
     static func resolve(
         hit: SelectionHit,
+        annotationHandle: AnnotationHandle? = nil,
         tool: AnnotationTool?,
         insideSelection: Bool,
         overAnnotation: Bool,
@@ -18,6 +19,11 @@ enum OverlayCursor: Equatable {
         isMoving: Bool
     ) -> OverlayCursor {
         if isMoving { return .closedHand }
+        switch annotationHandle {
+        case .frame(let handle): return .resize(handle)
+        case .start, .end: return .crosshair
+        case nil: break
+        }
         if case .handle(let handle) = hit { return .resize(handle) }
         if let tool {
             guard insideSelection else { return .arrow }

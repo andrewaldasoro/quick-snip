@@ -1,30 +1,5 @@
 import CoreGraphics
 
-enum SelectionHandle: CaseIterable, Sendable {
-    case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
-
-    /// Handle position on `rect` (top-left origin).
-    func point(in rect: CGRect) -> CGPoint {
-        switch self {
-        case .topLeft: CGPoint(x: rect.minX, y: rect.minY)
-        case .top: CGPoint(x: rect.midX, y: rect.minY)
-        case .topRight: CGPoint(x: rect.maxX, y: rect.minY)
-        case .right: CGPoint(x: rect.maxX, y: rect.midY)
-        case .bottomRight: CGPoint(x: rect.maxX, y: rect.maxY)
-        case .bottom: CGPoint(x: rect.midX, y: rect.maxY)
-        case .bottomLeft: CGPoint(x: rect.minX, y: rect.maxY)
-        case .left: CGPoint(x: rect.minX, y: rect.midY)
-        }
-    }
-
-    var isCorner: Bool {
-        switch self {
-        case .topLeft, .topRight, .bottomRight, .bottomLeft: true
-        case .top, .right, .bottom, .left: false
-        }
-    }
-}
-
 enum SelectionHit: Equatable, Sendable {
     case handle(SelectionHandle)
     case inside
@@ -99,7 +74,7 @@ struct SelectionEditor {
 
         switch drag {
         case .creating(let anchor):
-            selection = Self.rect(from: anchor, to: p)
+            selection = Geometry.rect(from: anchor, to: p)
 
         case .moving(let start, let original):
             let x = min(max(original.minX + point.x - start.x, bounds.minX), bounds.maxX - original.width)
@@ -107,29 +82,7 @@ struct SelectionEditor {
             selection = CGRect(origin: CGPoint(x: x, y: y), size: original.size)
 
         case .resizing(let handle, let original):
-            var minX = original.minX
-            var maxX = original.maxX
-            var minY = original.minY
-            var maxY = original.maxY
-            switch handle {
-            case .topLeft:
-                minX = p.x
-                minY = p.y
-            case .top: minY = p.y
-            case .topRight:
-                maxX = p.x
-                minY = p.y
-            case .right: maxX = p.x
-            case .bottomRight:
-                maxX = p.x
-                maxY = p.y
-            case .bottom: maxY = p.y
-            case .bottomLeft:
-                minX = p.x
-                maxY = p.y
-            case .left: minX = p.x
-            }
-            selection = Self.rect(from: CGPoint(x: minX, y: minY), to: CGPoint(x: maxX, y: maxY))
+            selection = handle.resize(original, to: p)
         }
     }
 
@@ -161,9 +114,5 @@ struct SelectionEditor {
             x: min(max(point.x, bounds.minX), bounds.maxX),
             y: min(max(point.y, bounds.minY), bounds.maxY)
         )
-    }
-
-    private static func rect(from a: CGPoint, to b: CGPoint) -> CGRect {
-        CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(b.x - a.x), height: abs(b.y - a.y))
     }
 }

@@ -7,6 +7,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
     static let borderColor = NSColor.white
     static let handleSize: CGFloat = 7
+    static let annotationHandleSize: CGFloat = 7
     static let hoveredWindowBorderWidth: CGFloat = 3
     /// Horizontal padding NSTextField adds before its text (line fragment padding).
     static let textFieldInset: CGFloat = 2
@@ -216,6 +217,22 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             outline.setLineDash([4, 3], count: 2, phase: 0)
             NSColor.white.setStroke()
             outline.stroke()
+            drawAnnotationHandles(of: selected)
+        }
+    }
+
+    /// Square handles on frame corners and edges, round ones on line ends.
+    private func drawAnnotationHandles(of annotation: Annotation) {
+        guard session.tool == nil else { return }
+        let size = Self.annotationHandleSize
+        for (handle, center) in AnnotationResizer.handles(for: annotation) {
+            let rect = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
+            let path = handle == .start || handle == .end ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+            Self.borderColor.setFill()
+            path.fill()
+            NSColor.controlAccentColor.setStroke()
+            path.lineWidth = 1
+            path.stroke()
         }
     }
 
