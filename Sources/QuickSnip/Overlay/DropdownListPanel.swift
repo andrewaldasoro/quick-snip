@@ -22,6 +22,7 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
     let preferredSize: CGSize
     let searchField: NSSearchField?
     let table = NSTableView()
+    private(set) var scroll: NSScrollView?
 
     init(
         values: [StyleValue], current: StyleValue?, isSearchable: Bool, onPick: @escaping @MainActor (StyleValue) -> Void,
@@ -63,6 +64,9 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
     private func build() {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("value"))
         table.addTableColumn(column)
+        // The one column fills the list, so there's never anything to scroll sideways.
+        table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
+        column.resizingMask = .autoresizingMask
         table.headerView = nil
         table.rowHeight = Self.rowHeight
         table.backgroundColor = .clear
@@ -74,11 +78,10 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         table.action = #selector(rowClicked(_:))
         table.setAccessibilityLabel(accessibilityLabel() ?? "Choices")
 
-        let scroll = NSScrollView()
+        let scroll = OverlayScrollView(frame: .zero)
         scroll.documentView = table
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
+        self.scroll = scroll
 
         let content = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false

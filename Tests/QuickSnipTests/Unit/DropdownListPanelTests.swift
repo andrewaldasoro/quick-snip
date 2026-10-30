@@ -116,4 +116,23 @@ struct DropdownListPanelTests {
         #expect((row.arrangedSubviews.first as? NSImageView)?.image?.accessibilityDescription == "Blue")
         #expect((row.arrangedSubviews.last as? NSTextField)?.stringValue == "Blue")
     }
+
+    /// Regression: the list showed a wide legacy scroller even when every row fit.
+    @Test func scrollsWithAThinOverlayScrollerHiddenWhenNotNeeded() throws {
+        let (panel, _) = make()
+        let scroll = try #require(panel.scroll)
+        #expect(scroll.scrollerStyle == .overlay)
+        #expect(scroll.autohidesScrollers)
+        #expect(!scroll.hasHorizontalScroller)
+        #expect(scroll.verticalScroller?.controlSize == .small)
+
+        scroll.scrollerStyle = .legacy  // what AppKit does when the system preference changes
+        #expect(scroll.scrollerStyle == .overlay)
+    }
+
+    @Test func theColumnFillsTheList() {
+        let (panel, _) = make()
+        #expect(panel.table.columnAutoresizingStyle == .firstColumnOnlyAutoresizingStyle)
+        #expect(panel.table.tableColumns.first?.resizingMask == .autoresizingMask)
+    }
 }
