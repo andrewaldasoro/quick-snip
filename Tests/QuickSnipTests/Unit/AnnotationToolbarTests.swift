@@ -267,7 +267,35 @@ struct ToolbarControlDrawingTests {
 
         button.state = .on
         #expect(try centerAlpha(button) > 0)
-        #expect(button.contentTintColor == .controlAccentColor)
+        #expect(button.contentTintColor == ToolbarButton.accentForeground)
+    }
+
+    /// Regression: an accent glyph on a 20% accent wash was hard to read. On and primary
+    /// buttons are now an opaque fill.
+    @Test func onAndPrimaryButtonsAreOpaque() throws {
+        let tool = ToolbarButton(symbol: "rectangle", label: "Rectangle", toggles: true)
+        tool.setFrameSize(AnnotationToolbar.buttonSize)
+        tool.state = .on
+        let copy = PrimaryToolbarButton(title: "Copy", symbol: "doc.on.doc", label: "Copy (⌘C)")
+        copy.setFrameSize(copy.intrinsicContentSize)
+
+        #expect(try centerAlpha(tool) == 255)
+        #expect(try centerAlpha(copy) == 255)
+    }
+
+    @Test func foregroundContrastsWithTheAccentFill() {
+        for (isHighlighted, isHovered) in [(false, false), (false, true), (true, false)] {
+            let fill = ToolbarButton.accentFill(isHighlighted: isHighlighted, isHovered: isHovered)
+            #expect(ColorContrast.ratio(ToolbarButton.accentForeground, fill) >= ColorContrast.minimumRatio)
+        }
+    }
+
+    @Test func hoverAndPressDarkenTheFill() {
+        let plain = ColorContrast.luminance(ToolbarButton.accentFill(isHighlighted: false, isHovered: false))
+        let hovered = ColorContrast.luminance(ToolbarButton.accentFill(isHighlighted: false, isHovered: true))
+        let pressed = ColorContrast.luminance(ToolbarButton.accentFill(isHighlighted: true, isHovered: false))
+        #expect(pressed < hovered)
+        #expect(hovered < plain)
     }
 
     @Test func disabledGlyphButtonDrawsNoHighlight() throws {
