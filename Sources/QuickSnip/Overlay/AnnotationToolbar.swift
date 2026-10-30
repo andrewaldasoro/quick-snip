@@ -126,7 +126,7 @@ final class AnnotationToolbar: NSView {
         return button
     }
 
-    private static let groupSpacing: CGFloat = 5
+    private static let groupSpacing: CGFloat = 4
 
     /// Groups of items, each tight together, with hairline dividers between groups.
     private func row(groups: [[NSView]]) -> NSStackView {
@@ -345,7 +345,7 @@ final class ToolbarButton: NSButton {
 /// tool, so it stands out and stays readable. Same height and corner radius as
 /// `ToolbarButton`, so it lines up with the glyphs (a push bezel doesn't).
 final class PrimaryToolbarButton: NSButton {
-    static let horizontalPadding: CGFloat = 9
+    static let horizontalPadding: CGFloat = 8
     static let iconSpacing: CGFloat = 5
 
     private let icon: NSImage

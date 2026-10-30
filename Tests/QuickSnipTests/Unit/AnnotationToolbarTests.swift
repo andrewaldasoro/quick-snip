@@ -33,9 +33,11 @@ struct AnnotationToolbarTests {
     }
 
     /// Regression: a single row was 812pt wide, overflowing small selections and screens.
+    /// Regression: at exactly 480 pt it measured 481 on CI's 1× runner (text widths differ by
+    /// scale), so it keeps a few points of headroom.
     @Test func compactEnoughForSmallScreens() {
         let (toolbar, _) = make()
-        #expect(toolbar.frame.width <= 480)
+        #expect(toolbar.frame.width <= 480 - 4)
     }
 
     @Test func readTextSitsJustBeforeSaveAndCopy() throws {
@@ -243,11 +245,40 @@ struct ToolbarControlDrawingTests {
         #expect(button.intrinsicContentSize.height == AnnotationToolbar.buttonSize.height)
     }
 
+    /// CI renders at 1×, this Mac at 2×: check the border at both.
+    @Test(arguments: [1, 2])
+    func outlineBorderShowsAtEveryScale(scale: Int) throws {
+        let button = OutlineToolbarButton(symbol: "square.and.arrow.down", label: "Save (⌘S)")
+        button.setFrameSize(button.intrinsicContentSize)
+        let image = try TestRendering.render(button, scale: scale)
+        #expect(image.width == Int(button.bounds.width) * scale)
+        #expect(TestImages.pixel(image, x: image.width / 2, y: 0).a > 0)
+        #expect(TestImages.pixel(image, x: 0, y: image.height / 2).a > 0)
+    }
+
+    /// Regression: the Save icon sat a point low, centered by its padded bounds.
+    @Test(arguments: [1, 2])
+    func saveIconIsCenteredByWhatYouSee(scale: Int) throws {
+        let button = OutlineToolbarButton(symbol: "square.and.arrow.down", label: "Save (⌘S)")
+        button.setFrameSize(button.intrinsicContentSize)
+        let image = try TestRendering.render(button, scale: scale)
+        let inset = 3 * scale  // past the border
+        let inside = try #require(
+            image.cropping(to: CGRect(x: inset, y: inset, width: image.width - inset * 2, height: image.height - inset * 2)))
+        let ink = try #require(ImageInk.pixelBounds(of: inside))
+        let center = CGFloat(inside.width) / 2
+        #expect(abs(ink.midX - center) <= 1, "x \(ink.midX) vs \(center)")
+        #expect(abs(ink.midY - CGFloat(inside.height) / 2) <= 1, "y \(ink.midY)")
+    }
+
     @Test func outlineButtonHasABorderAndFillsOnlyOnHoverAndPress() throws {
         let button = OutlineToolbarButton(symbol: "square.and.arrow.down", label: "Save (⌘S)")
         button.setFrameSize(button.intrinsicContentSize)
         #expect(button.fillAlpha == 0)
-        #expect(try centerAlpha(button) > 0)  // the border
+        // The border's top edge: row 0 at any scale (at 1× it's only that row).
+        let image = try render(button)
+        #expect(TestImages.pixel(image, x: image.width / 2, y: 0).a > 0)
+        #expect(TestImages.pixel(image, x: image.width / 7, y: image.height / 2).a == 0)  // no fill inside
         button.mouseEntered(with: NSEvent())
         #expect(button.fillAlpha > 0)
         button.isHighlighted = true

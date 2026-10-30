@@ -20,9 +20,8 @@ final class OutlineToolbarButton: NSButton {
         imageScaling = .scaleNone
         isBordered = false
         setButtonType(.momentaryChange)
-        contentTintColor = .labelColor
         if let cell = cell as? NSButtonCell {
-            // Hover and press are drawn by `draw(_:)`.
+            // Everything, the icon included, is drawn by `draw(_:)`.
             cell.highlightsBy = []
             cell.showsStateBy = []
         }
@@ -72,8 +71,20 @@ final class OutlineToolbarButton: NSButton {
         shape.lineWidth = Self.borderWidth
         shape.stroke()
 
-        // The button centers the symbol by its alignment rect, as it does for the glyph buttons;
-        // centering the image's raw bounds sat it off-center.
-        super.draw(dirtyRect)
+        // Centered by its visible pixels: the symbol's bounds and alignment rect both include
+        // padding under the tray, which sat it low (and left) in the outline.
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        let rect = ImageInk.centeredRect(for: icon, in: bounds, scale: scale)
+        Self.tinted(icon, .labelColor).draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+    }
+
+    private static func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
+        let tinted = NSImage(size: image.size, flipped: false) { rect in
+            image.draw(in: rect)
+            color.setFill()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        return tinted
     }
 }
