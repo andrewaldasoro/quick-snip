@@ -69,14 +69,13 @@ struct AnnotationTests {
         #expect(make(.rectangle(CGRect(x: 10, y: 10, width: 20, height: 20))).bounds == CGRect(x: 8, y: 8, width: 24, height: 24))
     }
 
-    @Test func textBoundsGrowWithFontSize() {
-        var small = make(.text("Hi", origin: .zero))
-        small.style.width = .thin
-        var large = small
-        large.style.width = .thick
-        #expect(large.bounds.height > small.bounds.height)
-        #expect(large.bounds.width > small.bounds.width)
-        #expect(small.bounds.origin == .zero)
+    @Test func textBoundsStartAtTheOriginAndIgnoreStrokeWidth() {
+        var thin = make(.text("Hi", origin: CGPoint(x: 5, y: 7)))
+        thin.style.width = .thin
+        var thick = thin
+        thick.style.width = .thick
+        #expect(thin.bounds.origin == CGPoint(x: 5, y: 7))
+        #expect(thick.bounds == thin.bounds)
     }
 
     @Test(arguments: [
@@ -104,10 +103,24 @@ struct AnnotationTests {
 
     // MARK: Style
 
-    @Test func strokeWidthsAndFontSizesIncrease() {
+    @Test func strokeWidthsIncrease() {
         let widths = StrokeWidth.allCases
         #expect(widths.map(\.lineWidth) == widths.map(\.lineWidth).sorted())
-        #expect(widths.map(\.fontSize) == widths.map(\.fontSize).sorted())
+    }
+
+    @Test func textBoundsFollowTheFontSize() {
+        var style = AnnotationStyle.default
+        let small = Annotation(kind: .text("Hello", origin: .zero), style: style).bounds
+        style.fontSize = 44
+        let large = Annotation(kind: .text("Hello", origin: .zero), style: style).bounds
+        #expect(large.height > small.height * 1.8)
+        #expect(large.width > small.width * 1.8)
+    }
+
+    @Test func textBoundsFollowTheFont() {
+        let proportional = Annotation(kind: .text("iiii", origin: .zero), style: .default).bounds
+        let monospaced = Annotation(kind: .text("iiii", origin: .zero), style: AnnotationStyle(font: .monospaced)).bounds
+        #expect(monospaced.width > proportional.width)
     }
 
     @Test func colorsAreDistinctAndConvertible() {

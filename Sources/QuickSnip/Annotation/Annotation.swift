@@ -45,19 +45,14 @@ enum StrokeWidth: String, CaseIterable, Sendable {
         case .thick: 8
         }
     }
-
-    var fontSize: CGFloat {
-        switch self {
-        case .thin: 16
-        case .medium: 22
-        case .thick: 32
-        }
-    }
 }
 
 struct AnnotationStyle: Equatable, Sendable {
     var color: AnnotationColor = .red
     var width: StrokeWidth = .medium
+    /// Text annotations only.
+    var font: TextFont = .system
+    var fontSize: CGFloat = TextSize.default
 
     static let `default` = AnnotationStyle()
 }
@@ -157,16 +152,11 @@ struct Annotation: Identifiable, Equatable, Sendable {
     }
 
     @MainActor
-    static func font(size: CGFloat) -> NSFont {
-        NSFont.systemFont(ofSize: size, weight: .semibold)
-    }
-
-    @MainActor
     static func attributedText(_ string: String, style: AnnotationStyle) -> NSAttributedString {
         NSAttributedString(
             string: string,
             attributes: [
-                .font: font(size: style.width.fontSize),
+                .font: style.font.font(size: style.fontSize),
                 .foregroundColor: style.color.nsColor,
             ])
     }

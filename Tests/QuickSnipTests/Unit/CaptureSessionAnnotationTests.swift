@@ -111,6 +111,94 @@ struct CaptureSessionAnnotationTests {
         #expect(session.document.annotations.map(\.kind) == [.text("hello", origin: CGPoint(x: 50, y: 60))])
     }
 
+    // MARK: Text style
+
+    private func addAndSelectText(_ session: CaptureSession) {
+        session.addText("Hello", at: CGPoint(x: 50, y: 60), on: 1)
+        selectFirstAnnotation(session, at: CGPoint(x: 52, y: 62))
+    }
+
+    @Test func newTextUsesTheChosenFontAndSize() {
+        let session = makeSession()
+        session.setFont(.serif)
+        session.setFontSize(40)
+        session.addText("Hi", at: CGPoint(x: 50, y: 60), on: 1)
+
+        #expect(session.document.annotations.first?.style.font == .serif)
+        #expect(session.document.annotations.first?.style.fontSize == 40)
+    }
+
+    @Test func fontSizeIsClamped() {
+        let session = makeSession()
+        session.setFontSize(1)
+        #expect(session.style.fontSize == TextSize.range.lowerBound)
+    }
+
+    @Test func sessionStartsWithTheGivenStyle() {
+        let session = CaptureSession(displays: [builtIn], style: AnnotationStyle(font: .rounded, fontSize: 30))
+        #expect(session.style.font == .rounded)
+        #expect(session.textStyle.fontSize == 30)
+    }
+
+    @Test func fontAndSizeApplyToTheSelectedTextAsOneUndoStepEach() {
+        let session = makeSession()
+        addAndSelectText(session)
+
+        session.setFont(.monospaced)
+        session.setFontSize(50)
+
+        #expect(session.document.annotations.first?.style.font == .monospaced)
+        #expect(session.document.annotations.first?.style.fontSize == 50)
+        session.undo()
+        #expect(session.document.annotations.first?.style.fontSize == TextSize.default)
+        #expect(session.document.annotations.first?.style.font == .monospaced)
+    }
+
+    @Test func fontChangesLeaveSelectedShapesAlone() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.toggleTool(.rectangle)
+        selectFirstAnnotation(session, at: CGPoint(x: 40, y: 50))
+
+        session.setFontSize(80)
+
+        #expect(session.document.annotations.first?.style.fontSize == TextSize.default)
+        #expect(session.document.undoManager.undoActionName == "Add Rectangle")
+        #expect(session.style.fontSize == 80)
+    }
+
+    @Test func textStyleShowsForTheTextToolOrSelectedText() {
+        let session = makeSession()
+        #expect(!session.showsTextStyle)
+        session.toggleTool(.text)
+        #expect(session.showsTextStyle)
+        session.toggleTool(.text)
+        addAndSelectText(session)
+        #expect(session.showsTextStyle)
+    }
+
+    @Test func textStyleIsTheSelectedTextsOwn() {
+        let session = makeSession()
+        session.addText("Hello", at: CGPoint(x: 50, y: 60), on: 1)
+        session.setFontSize(70)  // nothing selected: only new text
+        selectFirstAnnotation(session, at: CGPoint(x: 52, y: 62))
+
+        #expect(session.textStyle.fontSize == TextSize.default)
+        #expect(session.style.fontSize == 70)
+    }
+
+    @Test func textStyleChangesAreReported() {
+        let session = makeSession()
+        var reported: [(TextFont, CGFloat)] = []
+        session.onTextStyleChange = { reported.append(($0, $1)) }
+
+        session.setFont(.handwriting)
+        session.setFontSize(30)
+
+        #expect(reported.map(\.0) == [.handwriting, .handwriting])
+        #expect(reported.map(\.1) == [TextSize.default, 30])
+    }
+
     // MARK: Selecting & moving annotations
 
     @Test func clickingAnAnnotationWithoutToolSelectsIt() {
@@ -223,6 +311,17 @@ struct CaptureSessionAnnotationTests {
 
         session.toggleTool(.line)
         #expect(session.annotationHandle(on: 1, at: CGPoint(x: 70, y: 60)) == nil)
+    }
+
+    @Test func draggingATextCornerResizesItsFont() throws {
+        let session = makeSession()
+        addAndSelectText(session)
+        let box = try #require(session.selectedAnnotation).bounds
+
+        TestSessions.drag(session, on: 1, from: CGPoint(x: box.maxX, y: box.maxY), to: CGPoint(x: box.maxX, y: box.minY + box.height * 2))
+
+        #expect(session.document.annotations.first?.style.fontSize == TextSize.default * 2)
+        #expect(session.document.undoManager.undoActionName == "Resize Text")
     }
 
     @Test func handleShowsAResizeCursor() {

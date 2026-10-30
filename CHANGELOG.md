@@ -12,7 +12,8 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ### Added
 
-- **Resize annotations**: click an annotation to select it, then drag one of its handles. Rectangles and pixelate resize from any corner or edge, lines and arrows from either end, and pen or marker strokes scale from their corners. Each resize is one undo step
+- **Resize annotations**: click an annotation to select it, then drag one of its handles. Rectangles and pixelate resize from any corner or edge, lines and arrows from either end, and pen or marker strokes scale from their corners. Each resize is one undo step. Dragging a corner of a text annotation scales its size
+- **Text size and font**: with the Text tool, or a text annotation selected, the toolbar shows a third row to type an exact size in pixels (or step it), pick System, Rounded, Serif, Monospaced or Handwriting, or search every installed font with **More Fonts…**. QuickSnip remembers your last font and size
 
 ## [1.0.0] - 2026-10-14
 

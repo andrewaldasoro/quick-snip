@@ -270,6 +270,33 @@ struct CaptureControllerOutputTests {
         #expect(thumbnails.shown.isEmpty)
     }
 
+    @Test func newCaptureStartsWithTheRememberedTextStyle() async throws {
+        let store = TestDefaults()
+        let settings = AppSettings(defaults: store.defaults)
+        settings.textFont = .serif
+        settings.textSize = 40
+        let (controller, _, _) = make(settings: settings)
+        await controller.start()
+
+        let session = try #require(controller.session)
+        #expect(session.style.font == .serif)
+        #expect(session.style.fontSize == 40)
+    }
+
+    @Test func textStyleChangesAreRemembered() async throws {
+        let store = TestDefaults()
+        let settings = AppSettings(defaults: store.defaults)
+        let (controller, _, _) = make(settings: settings)
+        await controller.start()
+
+        let session = try #require(controller.session)
+        session.setFont(.monospaced)
+        session.setFontSize(64)
+
+        #expect(settings.textFont == .monospaced)
+        #expect(settings.textSize == 64)
+    }
+
     @Test func saveUsesSettingsFolderAndFormat() async throws {
         let store = TestDefaults()
         let settings = AppSettings(defaults: store.defaults)

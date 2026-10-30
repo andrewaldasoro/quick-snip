@@ -36,6 +36,8 @@ final class AppSettings {
         static let imageFormat = "imageFormat"
         static let showThumbnail = "showThumbnail"
         static let showMenuBarIcon = "showMenuBarIcon"
+        static let textFont = "textFont"
+        static let textSize = "textSize"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -57,6 +59,15 @@ final class AppSettings {
         didSet { defaults.set(showMenuBarIcon, forKey: Key.showMenuBarIcon) }
     }
 
+    /// The last font and size picked for text annotations.
+    var textFont: TextFont {
+        didSet { defaults.set(textFont.storageValue, forKey: Key.textFont) }
+    }
+
+    var textSize: CGFloat {
+        didSet { defaults.set(Double(textSize), forKey: Key.textSize) }
+    }
+
     init(defaults: UserDefaults = .standard, defaultDirectory: URL = ScreenshotSaver.defaultDirectory) {
         self.defaults = defaults
         saveDirectory =
@@ -65,5 +76,7 @@ final class AppSettings {
         imageFormat = defaults.string(forKey: Key.imageFormat).flatMap(ImageFormat.init(rawValue:)) ?? .png
         showThumbnail = defaults.object(forKey: Key.showThumbnail) as? Bool ?? true
         showMenuBarIcon = defaults.object(forKey: Key.showMenuBarIcon) as? Bool ?? true
+        textFont = defaults.string(forKey: Key.textFont).flatMap(TextFont.init(storageValue:)) ?? .system
+        textSize = (defaults.object(forKey: Key.textSize) as? Double).map { TextSize.clamp(CGFloat($0)) } ?? TextSize.default
     }
 }

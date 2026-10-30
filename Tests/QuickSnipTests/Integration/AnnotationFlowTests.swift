@@ -47,7 +47,7 @@ struct AnnotationFlowTests {
         }
     }
 
-    private func launchApp() -> App {
+    private func launchApp(settings: AppSettings? = nil) -> App {
         let permission = ScreenRecordingPermission(access: FakeScreenCaptureAccess(granted: true), urlOpener: SpyURLOpener())
         let overlay = SpyOverlayPresenter()
         let pasteboard = SpyPasteboard()
@@ -56,7 +56,8 @@ struct AnnotationFlowTests {
             capturer: FakeDisplayCapturing(displays: [builtIn]),
             presenter: overlay,
             pasteboard: pasteboard,
-            saver: ScreenshotSaver(directory: saveDirectory, now: { Date(timeIntervalSince1970: 1_791_373_780) }, timeZone: .gmt)
+            saver: ScreenshotSaver(directory: saveDirectory, now: { Date(timeIntervalSince1970: 1_791_373_780) }, timeZone: .gmt),
+            settings: settings
         )
         let coordinator = CaptureCoordinator(permission: permission, onboarding: SpyOnboarding()) {
             await controller.start()
@@ -135,6 +136,32 @@ struct AnnotationFlowTests {
             }
         }
         #expect(changed > 20)
+    }
+
+    @Test func largeSerifTextIsExportedAtItsSizeAndRemembered() async throws {
+        let store = TestDefaults()
+        let app = launchApp(settings: AppSettings(defaults: store.defaults, defaultDirectory: TestImages.temporaryDirectory()))
+        await app.captureAndSelect()
+
+        app.session.toggleTool(.text)
+        app.session.setFont(.serif)
+        app.session.setFontSize(60)
+        app.session.addText("WWW", at: CGPoint(x: 40, y: 40), on: 1)
+        app.overlay.send(.copy)
+
+        // Default-size text would end ~30pt down; 60pt glyphs reach well past that.
+        let image = try app.copied()
+        var changed = 0
+        for y in stride(from: CGFloat(80), to: 95, by: 1) {
+            for x in stride(from: CGFloat(40), to: 180, by: 1) where app.pixel(image, atPoint: x, y) != original(atPoint: x, y) {
+                changed += 1
+            }
+        }
+        #expect(changed > 20)
+
+        await app.captureAndSelect()
+        #expect(app.session.style.font == .serif)
+        #expect(app.session.style.fontSize == 60)
     }
 
     @Test func undoMistakeThenRedo() async throws {

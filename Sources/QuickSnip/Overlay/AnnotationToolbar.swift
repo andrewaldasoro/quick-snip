@@ -5,12 +5,16 @@ import AppKit
 /// primary action (Copy).
 ///
 /// Top row: cancel | tools | undo, redo | save, Copy. Bottom row: colors | stroke width | read text.
-/// Every choice is an inline button: pop-up menus would open below the overlay's level.
+/// For text, the stroke widths give way to a third row: fonts, More Fonts | size.
+/// Every choice is an inline control: pop-up menus would open below the overlay's level.
 final class AnnotationToolbar: NSView {
     struct Actions {
         var selectTool: @MainActor (AnnotationTool) -> Void
         var selectColor: @MainActor (AnnotationColor) -> Void
         var selectWidth: @MainActor (StrokeWidth) -> Void
+        var selectFont: @MainActor (TextFont) -> Void = { _ in }
+        var selectFontSize: @MainActor (CGFloat) -> Void = { _ in }
+        var toggleFontList: @MainActor () -> Void = {}
         var command: @MainActor (OverlayCommand) -> Void
     }
 
@@ -19,18 +23,26 @@ final class AnnotationToolbar: NSView {
     static let swatchSize: CGFloat = 22
     static let cornerRadius: CGFloat = 14
     static let insets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+    static let fontSampleSize: CGFloat = 13
+    static let fontSampleImageSize = NSSize(width: 22, height: 18)
 
     private let actions: Actions
     private(set) var toolButtons: [AnnotationTool: NSButton] = [:]
     private(set) var commandButtons: [OverlayCommand: NSButton] = [:]
     private(set) var colorButtons: [AnnotationColor: NSButton] = [:]
     private(set) var widthButtons: [StrokeWidth: NSButton] = [:]
+    private(set) var fontButtons: [TextFont: NSButton] = [:]
+    private(set) var moreFontsButton: NSButton?
+    private(set) var fontSizeControl: FontSizeControl?
+    /// The stroke widths and the divider before them, hidden together for text.
+    private(set) var widthGroup: [NSView] = []
+    private(set) var textRow = NSStackView()
 
     init(actions: Actions) {
         self.actions = actions
         super.init(frame: .zero)
 
-        let rows = NSStackView(views: [makeMainRow(), makeStyleRow()])
+        let rows = NSStackView(views: [makeMainRow(), makeStyleRow(), makeTextRow()])
         rows.orientation = .vertical
         rows.alignment = .leading
         rows.spacing = 4
@@ -72,7 +84,11 @@ final class AnnotationToolbar: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func update(tool: AnnotationTool?, style: AnnotationStyle, canUndo: Bool, canRedo: Bool) {
+    /// `textStyle` is the font and size to show, or nil to show stroke widths instead.
+    func update(
+        tool: AnnotationTool?, style: AnnotationStyle, textStyle: AnnotationStyle? = nil, isShowingFontList: Bool = false,
+        canUndo: Bool, canRedo: Bool
+    ) {
         for (candidate, button) in toolButtons {
             button.state = candidate == tool ? .on : .off
         }
@@ -82,6 +98,18 @@ final class AnnotationToolbar: NSView {
         for (width, button) in widthButtons {
             button.state = width == style.width ? .on : .off
         }
+        for view in widthGroup {
+            view.isHidden = textStyle != nil
+        }
+        textRow.isHidden = textStyle == nil
+        if let textStyle {
+            for (font, button) in fontButtons {
+                button.state = font == textStyle.font ? .on : .off
+            }
+            moreFontsButton?.state = isShowingFontList || !TextFont.curated.contains(textStyle.font) ? .on : .off
+            moreFontsButton?.toolTip = Self.moreFontsLabel(for: textStyle.font)
+            fontSizeControl?.update(size: textStyle.fontSize)
+        }
         commandButtons[.undo]?.isEnabled = canUndo
         commandButtons[.redo]?.isEnabled = canRedo
     }
@@ -89,7 +117,7 @@ final class AnnotationToolbar: NSView {
     // MARK: Building
 
     /// Liquid Glass on macOS 26+, the HUD-style vibrancy material before that.
-    private static func makeBackground(content: NSView) -> NSView {
+    static func makeBackground(content: NSView) -> NSView {
         if #available(macOS 26, *) {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
@@ -145,8 +173,43 @@ final class AnnotationToolbar: NSView {
         // Line the swatches up under the tools, past the cancel button.
         // Read Text sits here: the top row is already as wide as small displays allow.
         let row = row(groups: [colors, widths, [makeCommandButton(.readText)]])
-        row.edgeInsets.left = Self.buttonSize.width + Self.groupSpacing * 2 + ToolbarDivider.width
+        row.edgeInsets.left = Self.rowIndent
+        if let first = widths.first, let index = row.arrangedSubviews.firstIndex(of: first), index > 0 {
+            widthGroup = [row.arrangedSubviews[index - 1]] + widths
+        }
         return row
+    }
+
+    /// Text styling gets its own row: next to the colors it would be too wide for small displays.
+    private func makeTextRow() -> NSStackView {
+        let row = row(groups: makeTextControls())
+        row.edgeInsets.left = Self.rowIndent
+        row.isHidden = true
+        textRow = row
+        return row
+    }
+
+    private static let rowIndent = buttonSize.width + groupSpacing * 2 + ToolbarDivider.width
+
+    private func makeTextControls() -> [[NSView]] {
+        let fonts = TextFont.curated.enumerated().map { index, font in
+            let button = ToolbarButton(image: Self.fontSample(font), label: font.displayName, toggles: true)
+            button.target = self
+            button.action = #selector(fontClicked(_:))
+            button.tag = index
+            fontButtons[font] = button
+            return button as NSView
+        }
+        let more = ToolbarButton(symbol: "textformat", label: Self.moreFontsLabel(for: .system), toggles: true)
+        more.target = self
+        more.action = #selector(moreFontsClicked(_:))
+        moreFontsButton = more
+
+        let size = FontSizeControl(size: TextSize.default) { [weak self] size in
+            self?.actions.selectFontSize(size)
+        }
+        fontSizeControl = size
+        return [fonts + [more], [size]]
     }
 
     private func makeCommandButton(_ command: OverlayCommand) -> NSButton {
@@ -197,6 +260,14 @@ final class AnnotationToolbar: NSView {
 
     @objc private func widthClicked(_ sender: NSButton) {
         actions.selectWidth(StrokeWidth.allCases[sender.tag])
+    }
+
+    @objc private func fontClicked(_ sender: NSButton) {
+        actions.selectFont(TextFont.curated[sender.tag])
+    }
+
+    @objc private func moreFontsClicked(_ sender: NSButton) {
+        actions.toggleFontList()
     }
 
     @objc private func commandClicked(_ sender: NSButton) {
@@ -259,6 +330,26 @@ final class AnnotationToolbar: NSView {
         case .selectTool(let tool): label(for: tool)
         case .selectColor(let color): label(for: color)
         }
+    }
+
+    /// "More Fonts…", naming the picked family when it isn't one of the inline choices.
+    static func moreFontsLabel(for font: TextFont) -> String {
+        TextFont.curated.contains(font) ? "More Fonts…" : "More Fonts… (\(font.displayName))"
+    }
+
+    /// "Aa" in the font itself, as a template so it tints like the other glyphs.
+    @MainActor
+    private static func fontSample(_ font: TextFont) -> NSImage {
+        let sample = NSAttributedString(
+            string: "Aa", attributes: [.font: font.font(size: fontSampleSize), .foregroundColor: NSColor.black])
+        let image = NSImage(size: fontSampleImageSize, flipped: false) { rect in
+            let size = sample.size()
+            sample.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2))
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = font.displayName
+        return image
     }
 
     private static func widthImage(for width: StrokeWidth) -> NSImage {
