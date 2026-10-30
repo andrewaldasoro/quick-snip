@@ -14,6 +14,29 @@ struct AppSettingsTests {
         #expect(settings.imageFormat == .png)
         #expect(settings.showThumbnail)
         #expect(settings.showMenuBarIcon)
+        #expect(settings.textFont == .system)
+        #expect(settings.textSize == TextSize.default)
+    }
+
+    @Test func textFontAndSizePersist() {
+        let store = TestDefaults()
+        let settings = AppSettings(defaults: store.defaults, defaultDirectory: fallback)
+        settings.textFont = .family("Avenir Next")
+        settings.textSize = 48
+
+        let reloaded = AppSettings(defaults: store.defaults, defaultDirectory: fallback)
+        #expect(reloaded.textFont == .family("Avenir Next"))
+        #expect(reloaded.textSize == 48)
+    }
+
+    @Test func storedTextValuesOutOfRangeOrUnknownAreRepaired() {
+        let store = TestDefaults()
+        store.defaults.set("comic", forKey: AppSettings.Key.textFont)
+        store.defaults.set(5000.0, forKey: AppSettings.Key.textSize)
+
+        let settings = AppSettings(defaults: store.defaults, defaultDirectory: fallback)
+        #expect(settings.textFont == .system)
+        #expect(settings.textSize == TextSize.range.upperBound)
     }
 
     @Test func changesPersistAcrossInstances() {

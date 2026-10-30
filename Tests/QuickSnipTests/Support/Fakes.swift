@@ -249,3 +249,7 @@ final class GatedWindowCapturer: WindowImageCapturing {
         }
     }
 }
+
+struct FakeFontFamilies: FontFamilyProviding {
+    var availableFamilies: [String]
+}

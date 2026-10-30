@@ -10,6 +10,9 @@ struct AnnotationToolbarTests {
         var colors: [AnnotationColor] = []
         var widths: [StrokeWidth] = []
         var commands: [OverlayCommand] = []
+        var fonts: [TextFont] = []
+        var fontSizes: [CGFloat] = []
+        var fontListToggles = 0
     }
 
     private func make() -> (AnnotationToolbar, Recorder) {
@@ -19,6 +22,9 @@ struct AnnotationToolbarTests {
                 selectTool: { recorder.tools.append($0) },
                 selectColor: { recorder.colors.append($0) },
                 selectWidth: { recorder.widths.append($0) },
+                selectFont: { recorder.fonts.append($0) },
+                selectFontSize: { recorder.fontSizes.append($0) },
+                toggleFontList: { recorder.fontListToggles += 1 },
                 command: { recorder.commands.append($0) }
             ))
         return (toolbar, recorder)
@@ -30,6 +36,70 @@ struct AnnotationToolbarTests {
         #expect(Set(toolbar.commandButtons.keys) == Set(AnnotationToolbar.commands))
         #expect(Set(toolbar.colorButtons.keys) == Set(AnnotationColor.allCases))
         #expect(Set(toolbar.widthButtons.keys) == Set(StrokeWidth.allCases))
+    }
+
+    // MARK: Text
+
+    private func showText(_ toolbar: AnnotationToolbar, font: TextFont = .system, size: CGFloat = 22, isShowingFontList: Bool = false) {
+        toolbar.update(
+            tool: .text, style: .default, textStyle: AnnotationStyle(font: font, fontSize: size), isShowingFontList: isShowingFontList,
+            canUndo: false, canRedo: false)
+    }
+
+    @Test func strokeWidthsShowUntilTextIsBeingStyled() {
+        let (toolbar, _) = make()
+        #expect(toolbar.widthGroup.count == StrokeWidth.allCases.count + 1)  // plus its divider
+        #expect(toolbar.widthGroup.allSatisfy { !$0.isHidden })
+        #expect(toolbar.textRow.isHidden)
+
+        showText(toolbar)
+        #expect(toolbar.widthGroup.allSatisfy { $0.isHidden })
+        #expect(!toolbar.textRow.isHidden)
+
+        toolbar.update(tool: .pen, style: .default, canUndo: false, canRedo: false)
+        #expect(toolbar.widthGroup.allSatisfy { !$0.isHidden })
+        #expect(toolbar.textRow.isHidden)
+    }
+
+    @Test func textControlsShowTheTextStyle() {
+        let (toolbar, _) = make()
+        showText(toolbar, font: .serif, size: 40)
+        #expect(Set(toolbar.fontButtons.keys) == Set(TextFont.curated))
+        #expect(toolbar.fontButtons[.serif]?.state == .on)
+        #expect(toolbar.fontButtons[.system]?.state == .off)
+        #expect(toolbar.moreFontsButton?.state == .off)
+        #expect(toolbar.fontSizeControl?.field.stringValue == "40")
+    }
+
+    @Test func moreFontsIsOnForAnotherFamilyOrWhileTheListIsOpen() {
+        let (toolbar, _) = make()
+        showText(toolbar, font: .family("Avenir"))
+        #expect(toolbar.moreFontsButton?.state == .on)
+        #expect(toolbar.moreFontsButton?.toolTip == "More Fonts… (Avenir)")
+        showText(toolbar, isShowingFontList: true)
+        #expect(toolbar.moreFontsButton?.state == .on)
+        #expect(toolbar.moreFontsButton?.toolTip == "More Fonts…")
+    }
+
+    @Test func textControlsSendTheirChoice() {
+        let (toolbar, recorder) = make()
+        showText(toolbar)
+        toolbar.fontButtons[.handwriting]?.performClick(nil)
+        toolbar.moreFontsButton?.performClick(nil)
+        toolbar.fontSizeControl?.stepper.doubleValue = 23
+        if let stepper = toolbar.fontSizeControl?.stepper { _ = stepper.sendAction(stepper.action, to: stepper.target) }
+
+        #expect(recorder.fonts == [.handwriting])
+        #expect(recorder.fontListToggles == 1)
+        #expect(recorder.fontSizes == [23])
+    }
+
+    @Test func compactEnoughWithTextControls() {
+        let (toolbar, _) = make()
+        let plain = toolbar.fittingSize
+        showText(toolbar)
+        #expect(toolbar.fittingSize.width <= 480)
+        #expect(toolbar.fittingSize.height > plain.height)  // the text row
     }
 
     @Test func sizesItselfToFitContent() {

@@ -35,8 +35,12 @@ struct AnnotationResizerTests {
         #expect(handles.first?.point == CGPoint(x: 10, y: 10))
     }
 
-    @Test func textHasNoHandles() {
-        #expect(AnnotationResizer.handles(for: annotation(.text("Hi", origin: .zero))).isEmpty)
+    @Test func textHasCornerHandlesOnItsBox() {
+        let text = annotation(.text("Hi", origin: CGPoint(x: 10, y: 20)))
+        let handles = AnnotationResizer.handles(for: text)
+        #expect(handles.map(\.handle) == [.frame(.topLeft), .frame(.topRight), .frame(.bottomRight), .frame(.bottomLeft)])
+        #expect(handles.first?.point == CGPoint(x: 10, y: 20))
+        #expect(handles[2].point == CGPoint(x: text.bounds.maxX, y: text.bounds.maxY))
     }
 
     // MARK: Hit testing
@@ -109,6 +113,38 @@ struct AnnotationResizerTests {
 
     @Test func mismatchedHandlesAreIgnored() {
         #expect(AnnotationResizer.resized(annotation(.rectangle(rect)), dragging: .start, to: .zero) == nil)
-        #expect(AnnotationResizer.resized(annotation(.text("Hi", origin: .zero)), dragging: .frame(.topLeft), to: .zero) == nil)
+        #expect(AnnotationResizer.resized(annotation(.text("Hi", origin: .zero)), dragging: .frame(.top), to: .zero) == nil)
+        #expect(AnnotationResizer.resized(annotation(.text("Hi", origin: .zero)), dragging: .end, to: .zero) == nil)
+    }
+
+    // MARK: Text
+
+    @Test func draggingATextCornerScalesTheFontSize() {
+        let text = annotation(.text("Hello", origin: CGPoint(x: 10, y: 20)))
+        let box = text.bounds
+
+        let resized = AnnotationResizer.resized(
+            text, dragging: .frame(.bottomRight), to: CGPoint(x: box.maxX, y: box.minY + box.height * 2))
+
+        #expect(resized?.style.fontSize == TextSize.default * 2)
+        #expect(resized?.bounds.origin == box.origin)  // the opposite corner stays put
+    }
+
+    @Test func draggingTheTopLeftCornerKeepsTheBottomRightCorner() throws {
+        let text = annotation(.text("Hello", origin: CGPoint(x: 100, y: 100)))
+        let box = text.bounds
+
+        let resized = try #require(
+            AnnotationResizer.resized(text, dragging: .frame(.topLeft), to: CGPoint(x: box.minX, y: box.maxY - box.height * 2)))
+
+        #expect(resized.style.fontSize == TextSize.default * 2)
+        #expect(abs(resized.bounds.maxX - box.maxX) < 0.001)
+        #expect(abs(resized.bounds.maxY - box.maxY) < 0.001)
+    }
+
+    @Test func textScalingIsClampedToTheSizeRange() {
+        let text = annotation(.text("Hello", origin: .zero))
+        let resized = AnnotationResizer.resized(text, dragging: .frame(.bottomRight), to: CGPoint(x: 0, y: 5000))
+        #expect(resized?.style.fontSize == TextSize.range.upperBound)
     }
 }

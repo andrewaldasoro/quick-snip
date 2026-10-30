@@ -1,7 +1,7 @@
 import AppKit
 
 /// Full-screen view for one display: frozen image, dimming outside the selection, annotations,
-/// border, handles, size label, the annotation toolbar, and inline text entry.
+/// border, handles, size label, the annotation toolbar, the font list, and inline text entry.
 /// Flipped, so local points match `CaptureSession`.
 final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
@@ -22,10 +22,16 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     private(set) var toolbar: AnnotationToolbar?
     private(set) var textField: NSTextField?
     private var textOrigin: CGPoint = .zero
+    private let fontFamilies: FontFamilyProviding
+    private(set) var fontList: FontListPanel?
 
-    init(display: CapturedDisplay, session: CaptureSession, onCommand: @escaping @MainActor (OverlayCommand) -> Void) {
+    init(
+        display: CapturedDisplay, session: CaptureSession, fontFamilies: FontFamilyProviding = SystemFontFamilies(),
+        onCommand: @escaping @MainActor (OverlayCommand) -> Void
+    ) {
         capturedDisplay = display
         self.session = session
+        self.fontFamilies = fontFamilies
         self.onCommand = onCommand
         frozenImage = NSImage(cgImage: display.image, size: display.frame.size)
         frozenSource = display.image
@@ -61,9 +67,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             ))
     }
 
-    /// Cursor for a point in this view; the toolbar always gets an arrow.
+    /// Cursor for a point in this view; the toolbar and font list always get an arrow.
     func cursor(at point: CGPoint) -> OverlayCursor {
         if let toolbar, !toolbar.isHidden, toolbar.frame.contains(point) { return .arrow }
+        if let fontList, fontList.frame.contains(point) { return .arrow }
         return session.cursor(on: display.displayID, at: point)
     }
 
@@ -100,17 +107,23 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             !session.isShowingCheatsheet
         else {
             toolbar?.isHidden = true
+            closeFontList()
             return
         }
+        if !session.showsTextStyle { closeFontList() }
         let toolbar = self.toolbar ?? makeToolbar()
         toolbar.update(
             tool: session.tool,
             style: session.style,
+            textStyle: session.showsTextStyle ? session.textStyle : nil,
+            isShowingFontList: fontList != nil,
             canUndo: session.document.canUndo,
             canRedo: session.document.canRedo
         )
         toolbar.frame = ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds)
         toolbar.isHidden = false
+        // Placed against the toolbar the way the toolbar is placed against the selection.
+        fontList?.frame = ToolbarLayout.frame(size: FontListPanel.size, selection: toolbar.frame, bounds: bounds)
     }
 
     private func makeToolbar() -> AnnotationToolbar {
@@ -128,6 +141,17 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
                     self?.session.setWidth(width)
                     self?.restoreFocus()
                 },
+                selectFont: { [weak self] font in
+                    self?.session.setFont(font)
+                    self?.restoreFocus()
+                },
+                selectFontSize: { [weak self] size in
+                    self?.session.setFontSize(size)
+                    self?.restoreFocus()
+                },
+                toggleFontList: { [weak self] in
+                    self?.toggleFontList()
+                },
                 command: { [weak self] command in
                     self?.onCommand(command)
                     self?.restoreFocus()
@@ -141,6 +165,45 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     /// Keeps keyboard shortcuts working after clicking a toolbar control.
     private func restoreFocus() {
         if textField == nil { window?.makeFirstResponder(self) }
+    }
+
+    /// Typing goes to a text field (annotation text, size, font search), not to shortcuts.
+    private var isTyping: Bool {
+        textField != nil || window?.firstResponder is NSText
+    }
+
+    // MARK: Font list
+
+    func toggleFontList() {
+        if fontList != nil {
+            closeFontList()
+        } else {
+            openFontList()
+        }
+    }
+
+    private func openFontList() {
+        let panel = FontListPanel(
+            catalog: FontCatalog(provider: fontFamilies),
+            current: session.textStyle.font,
+            onPick: { [weak self] family in
+                self?.session.setFont(.family(family))
+                self?.closeFontList()
+            },
+            onClose: { [weak self] in self?.closeFontList() }
+        )
+        addSubview(panel)
+        fontList = panel
+        sessionDidChange()
+        window?.makeFirstResponder(panel.searchField)
+    }
+
+    func closeFontList() {
+        guard let panel = fontList else { return }
+        fontList = nil
+        panel.removeFromSuperview()
+        restoreFocus()
+        sessionDidChange()
     }
 
     // MARK: Drawing
@@ -290,7 +353,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     func beginTextEntry(at point: CGPoint) {
         commitTextEntry()
 
-        let font = Annotation.font(size: session.style.width.fontSize)
+        let font = session.style.font.font(size: session.style.fontSize)
         let field = NSTextField(string: "")
         field.isBordered = false
         field.isBezeled = false
@@ -362,6 +425,11 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             commitTextEntry()
             return
         }
+        // A click outside the font list only closes it, like the cheatsheet.
+        if fontList != nil {
+            closeFontList()
+            return
+        }
         session.mouseDown(on: display.displayID, at: localPoint(of: event))
         updateCursor(for: event)
     }
@@ -384,7 +452,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
 
     override func keyDown(with event: NSEvent) {
         if let command = OverlayKeyMap.command(for: event) {
-            onCommand(command)
+            perform(command)
         } else {
             super.keyDown(with: event)
         }
@@ -392,11 +460,20 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         // While typing, ⌘C/⌘Z etc. belong to the text field.
-        guard textField == nil else { return super.performKeyEquivalent(with: event) }
+        guard !isTyping else { return super.performKeyEquivalent(with: event) }
         if let command = OverlayKeyMap.command(for: event) {
-            onCommand(command)
+            perform(command)
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    /// Esc closes the font list before it cancels the capture.
+    private func perform(_ command: OverlayCommand) {
+        if command == .cancel, fontList != nil {
+            closeFontList()
+            return
+        }
+        onCommand(command)
     }
 }

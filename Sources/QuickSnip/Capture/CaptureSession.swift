@@ -23,7 +23,7 @@ final class CaptureSession {
     private var editors: [CGDirectDisplayID: SelectionEditor]
 
     private(set) var tool: AnnotationTool?
-    private(set) var style = AnnotationStyle.default
+    private(set) var style: AnnotationStyle
     private(set) var selectedAnnotationID: UUID?
     /// The shortcut cheatsheet (**?**) is drawn over the overlay.
     private(set) var isShowingCheatsheet = false
@@ -44,11 +44,14 @@ final class CaptureSession {
     var onChange: (@MainActor () -> Void)?
     /// A click selected a window that others cover: its own content has to be captured.
     var onSnapToCoveredWindow: (@MainActor (_ displayID: CGDirectDisplayID, _ window: SnapWindow) -> Void)?
+    /// The text font or size changed, so it can be remembered for the next capture.
+    var onTextStyleChange: (@MainActor (_ font: TextFont, _ size: CGFloat) -> Void)?
     /// Asks the overlay of a display to start text entry at a display-local point.
     var onRequestTextEntry: (@MainActor (_ displayID: CGDirectDisplayID, _ point: CGPoint) -> Void)?
 
-    init(displays: [CapturedDisplay]) {
+    init(displays: [CapturedDisplay], style: AnnotationStyle = .default) {
         self.displays = displays
+        self.style = style
         editors = Dictionary(
             displays.map { ($0.displayID, SelectionEditor(bounds: $0.localBounds)) },
             uniquingKeysWith: { first, _ in first }
@@ -110,6 +113,21 @@ final class CaptureSession {
     func annotationHandle(on id: CGDirectDisplayID, at point: CGPoint) -> AnnotationHandle? {
         guard tool == nil, id == activeDisplayID, let selected = selectedAnnotation else { return nil }
         return AnnotationResizer.hitTest(point, on: selected)
+    }
+
+    /// The text tool is active or a text annotation is selected: the toolbar offers font and size.
+    var showsTextStyle: Bool {
+        tool == .text || selectedTextStyle != nil
+    }
+
+    /// Font and size the toolbar shows: the selected text's, otherwise what new text gets.
+    var textStyle: AnnotationStyle {
+        selectedTextStyle ?? style
+    }
+
+    private var selectedTextStyle: AnnotationStyle? {
+        guard let selected = selectedAnnotation, case .text = selected.kind else { return nil }
+        return selected.style
     }
 
     func hoveredWindow(on id: CGDirectDisplayID) -> CGRect? {
@@ -281,6 +299,21 @@ final class CaptureSession {
         notify()
     }
 
+    /// Applies to new text and to the selected text annotation.
+    func setFont(_ font: TextFont) {
+        style.font = font
+        restyleSelectedText { $0.font = font }
+        onTextStyleChange?(style.font, style.fontSize)
+        notify()
+    }
+
+    func setFontSize(_ size: CGFloat) {
+        style.fontSize = TextSize.clamp(size)
+        restyleSelectedText { $0.fontSize = style.fontSize }
+        onTextStyleChange?(style.font, style.fontSize)
+        notify()
+    }
+
     func addText(_ text: String, at origin: CGPoint, on id: CGDirectDisplayID) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, id == activeDisplayID else { return }
@@ -323,6 +356,12 @@ final class CaptureSession {
         guard let id = selectedAnnotationID, var annotation = document.annotation(id) else { return }
         change(&annotation.style)
         document.update(annotation, actionName: "Change Style")
+    }
+
+    /// Font changes don't show on shapes, so they'd only add invisible undo steps there.
+    private func restyleSelectedText(_ change: (inout AnnotationStyle) -> Void) {
+        guard selectedTextStyle != nil else { return }
+        restyleSelectedAnnotation(change)
     }
 
     // MARK: Output

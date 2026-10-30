@@ -97,7 +97,11 @@ final class CaptureController {
                 logger.error("Capture returned no displays")
                 return
             }
-            let session = CaptureSession(displays: displays)
+            let session = CaptureSession(displays: displays, style: initialStyle)
+            session.onTextStyleChange = { [weak self] font, size in
+                self?.settings?.textFont = font
+                self?.settings?.textSize = size
+            }
             session.onSnapToCoveredWindow = { [weak self, weak session] displayID, window in
                 guard let session else { return }
                 self?.coveredWindows?.load(window, on: displayID, into: session)
@@ -109,6 +113,12 @@ final class CaptureController {
         } catch {
             logger.error("Capture failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// New captures start with the text font and size picked last time.
+    private var initialStyle: AnnotationStyle {
+        guard let settings else { return .default }
+        return AnnotationStyle(font: settings.textFont, fontSize: settings.textSize)
     }
 
     /// Displays were added, removed, or rearranged: the frozen images no longer match.
