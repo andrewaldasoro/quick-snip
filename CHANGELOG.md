@@ -1,14 +1,16 @@
 # Changelog
 
-All notable changes to QuickSnip. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/):
+All notable changes to QuickSnip. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-- **Major** — a change that breaks how existing users work (a removed feature, a changed default shortcut)
-- **Minor** — new features
-- **Patch** — fixes
+Pick the step by how big the change is for users:
 
-Each release's section becomes its GitHub release notes, so write it for users. Add changes under **Unreleased** as they land; rename it to the version when you tag.
+- **Major** — a complete redesign, several major features at once, or a change that breaks how existing users work (a removed feature, a changed default shortcut)
+- **Minor** — a big feature or a redesign of one part
+- **Patch** — small changes, fixes, security and dependency upgrades
 
-## [Unreleased]
+Each release's section becomes its GitHub release notes, so write it for users. Every pull request with user-facing changes adds its own `## [x.y.z] - YYYY-MM-DD` section, one step after the last release; merging it to `main` tags and publishes that version. Pull requests without user-facing changes add nothing and release nothing.
+
+## [1.1.0] - 2026-10-30
 
 ### Added
 

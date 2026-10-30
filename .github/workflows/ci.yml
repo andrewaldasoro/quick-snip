@@ -31,6 +31,12 @@ jobs:
           path: .build
           key: spm-xcode-27.0-${{ hashFiles('Package.resolved') }}
 
+      # A new changelog version must follow the latest tag; notes under Unreleased would never ship.
+      - name: Release version
+        run: |
+          version="$(./scripts/next-release.sh)"
+          echo "Merging releases: ${version:-nothing}" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Quality gate
         run: ./scripts/check.sh --bundle
 
