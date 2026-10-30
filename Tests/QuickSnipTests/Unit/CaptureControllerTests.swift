@@ -175,11 +175,10 @@ struct CaptureControllerEditingTests {
 
     @Test func deleteCommandNeedsASelectedAnnotation() async throws {
         let (controller, session) = try await startedController()
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 60, y: 50), to: CGPoint(x: 60, y: 50))  // empty spot: deselects
         #expect(controller.handle(.deleteAnnotation) == .ignored)
 
-        session.toggleTool(.rectangle)
-        session.mouseDown(on: 1, at: CGPoint(x: 20, y: 30))
-        session.mouseUp(on: 1, at: CGPoint(x: 20, y: 30))
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 30, y: 20), to: CGPoint(x: 30, y: 20))  // its top edge
         #expect(controller.handle(.deleteAnnotation) == .edited)
         #expect(session.document.annotations.isEmpty)
     }

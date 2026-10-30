@@ -40,8 +40,8 @@ enum AnnotationRenderer {
             context.setAlpha(Annotation.markerAlpha)
             strokePolyline(points, width: width, in: context)
 
-        case .text(let string, let origin):
-            drawText(string, at: origin, style: annotation.style, in: context)
+        case .text(let string, let origin, let boxWidth):
+            drawText(string, at: origin, boxWidth: boxWidth, style: annotation.style, in: context)
 
         case .pixelate(let rect):
             drawPixelated(rect, in: context, display: display, cache: cache)
@@ -85,10 +85,10 @@ enum AnnotationRenderer {
         context.fillPath()
     }
 
-    private static func drawText(_ string: String, at origin: CGPoint, style: AnnotationStyle, in context: CGContext) {
+    private static func drawText(_ string: String, at origin: CGPoint, boxWidth: CGFloat?, style: AnnotationStyle, in context: CGContext) {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        Annotation.attributedText(string, style: style).draw(at: origin)
+        TextLayout.draw(string, origin: origin, boxWidth: boxWidth, style: style)
         NSGraphicsContext.restoreGraphicsState()
     }
 

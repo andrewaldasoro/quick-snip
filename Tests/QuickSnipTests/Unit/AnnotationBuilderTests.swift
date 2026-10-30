@@ -59,7 +59,7 @@ struct AnnotationBuilderTests {
     }
 
     @Test func usesStyleFromStart() {
-        let style = AnnotationStyle(color: .blue, width: .thick)
+        let style = AnnotationStyle(color: .blue, lineWidth: 8)
         var builder = AnnotationBuilder(tool: .line, style: style, start: .zero)
         builder.add(CGPoint(x: 30, y: 0))
         #expect(builder.finish()?.style == style)

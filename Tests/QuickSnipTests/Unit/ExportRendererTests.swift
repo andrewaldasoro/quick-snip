@@ -57,7 +57,7 @@ struct ExportRendererTests {
     }
 
     @Test func arrowHasAHeadWiderThanTheShaft() throws {
-        let style = AnnotationStyle(color: .blue, width: .thin)
+        let style = AnnotationStyle(color: .blue, lineWidth: 2)
         let image = try render([Annotation(kind: .arrow(from: CGPoint(x: 15, y: 30), to: CGPoint(x: 55, y: 30)), style: style)])
         #expect(pixel(image, atPoint: 30, 30).isClose(to: .blue))  // shaft
         #expect(!pixel(image, atPoint: 30, 33).isClose(to: .blue))  // shaft is thin
@@ -65,7 +65,7 @@ struct ExportRendererTests {
     }
 
     @Test func penFollowsItsPoints() throws {
-        let style = AnnotationStyle(color: .green, width: .medium)
+        let style = AnnotationStyle(color: .green, lineWidth: 4)
         let image = try render([
             Annotation(kind: .pen([CGPoint(x: 15, y: 15), CGPoint(x: 50, y: 15), CGPoint(x: 50, y: 45)]), style: style)
         ])
@@ -75,7 +75,7 @@ struct ExportRendererTests {
     }
 
     @Test func markerIsTranslucent() throws {
-        let style = AnnotationStyle(color: .yellow, width: .thin)
+        let style = AnnotationStyle(color: .yellow, lineWidth: 2)
         let base = TestImages.solidImage(width: 200, height: 160, color: RGBA(r: 0, g: 0, b: 255, a: 255))
         let blue = CapturedDisplay(displayID: 1, frame: display.frame, image: base)
         let image = try #require(
@@ -90,7 +90,7 @@ struct ExportRendererTests {
     }
 
     @Test func textIsDrawnUprightAtItsOrigin() throws {
-        let style = AnnotationStyle(color: .red, width: .thick)
+        let style = AnnotationStyle(color: .red, lineWidth: 8)
         let white = CapturedDisplay(
             displayID: 1, frame: display.frame,
             image: TestImages.solidImage(width: 200, height: 160, color: RGBA(r: 255, g: 255, b: 255, a: 255))

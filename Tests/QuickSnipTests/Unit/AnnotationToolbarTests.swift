@@ -7,12 +7,7 @@ import Testing
 struct AnnotationToolbarTests {
     private final class Recorder {
         var tools: [AnnotationTool] = []
-        var colors: [AnnotationColor] = []
-        var widths: [StrokeWidth] = []
         var commands: [OverlayCommand] = []
-        var fonts: [TextFont] = []
-        var fontSizes: [CGFloat] = []
-        var fontListToggles = 0
     }
 
     private func make() -> (AnnotationToolbar, Recorder) {
@@ -20,11 +15,6 @@ struct AnnotationToolbarTests {
         let toolbar = AnnotationToolbar(
             actions: .init(
                 selectTool: { recorder.tools.append($0) },
-                selectColor: { recorder.colors.append($0) },
-                selectWidth: { recorder.widths.append($0) },
-                selectFont: { recorder.fonts.append($0) },
-                selectFontSize: { recorder.fontSizes.append($0) },
-                toggleFontList: { recorder.fontListToggles += 1 },
                 command: { recorder.commands.append($0) }
             ))
         return (toolbar, recorder)
@@ -34,84 +24,40 @@ struct AnnotationToolbarTests {
         let (toolbar, _) = make()
         #expect(Set(toolbar.toolButtons.keys) == Set(AnnotationTool.allCases))
         #expect(Set(toolbar.commandButtons.keys) == Set(AnnotationToolbar.commands))
-        #expect(Set(toolbar.colorButtons.keys) == Set(AnnotationColor.allCases))
-        #expect(Set(toolbar.widthButtons.keys) == Set(StrokeWidth.allCases))
     }
 
-    // MARK: Text
-
-    private func showText(_ toolbar: AnnotationToolbar, font: TextFont = .system, size: CGFloat = 22, isShowingFontList: Bool = false) {
-        toolbar.update(
-            tool: .text, style: .default, textStyle: AnnotationStyle(font: font, fontSize: size), isShowingFontList: isShowingFontList,
-            canUndo: false, canRedo: false)
-    }
-
-    @Test func strokeWidthsShowUntilTextIsBeingStyled() {
-        let (toolbar, _) = make()
-        #expect(toolbar.widthGroup.count == StrokeWidth.allCases.count + 1)  // plus its divider
-        #expect(toolbar.widthGroup.allSatisfy { !$0.isHidden })
-        #expect(toolbar.textRow.isHidden)
-
-        showText(toolbar)
-        #expect(toolbar.widthGroup.allSatisfy { $0.isHidden })
-        #expect(!toolbar.textRow.isHidden)
-
-        toolbar.update(tool: .pen, style: .default, canUndo: false, canRedo: false)
-        #expect(toolbar.widthGroup.allSatisfy { !$0.isHidden })
-        #expect(toolbar.textRow.isHidden)
-    }
-
-    @Test func textControlsShowTheTextStyle() {
-        let (toolbar, _) = make()
-        showText(toolbar, font: .serif, size: 40)
-        #expect(Set(toolbar.fontButtons.keys) == Set(TextFont.curated))
-        #expect(toolbar.fontButtons[.serif]?.state == .on)
-        #expect(toolbar.fontButtons[.system]?.state == .off)
-        #expect(toolbar.moreFontsButton?.state == .off)
-        #expect(toolbar.fontSizeControl?.field.stringValue == "40")
-    }
-
-    @Test func moreFontsIsOnForAnotherFamilyOrWhileTheListIsOpen() {
-        let (toolbar, _) = make()
-        showText(toolbar, font: .family("Avenir"))
-        #expect(toolbar.moreFontsButton?.state == .on)
-        #expect(toolbar.moreFontsButton?.toolTip == "More Fonts… (Avenir)")
-        showText(toolbar, isShowingFontList: true)
-        #expect(toolbar.moreFontsButton?.state == .on)
-        #expect(toolbar.moreFontsButton?.toolTip == "More Fonts…")
-    }
-
-    @Test func textControlsSendTheirChoice() {
-        let (toolbar, recorder) = make()
-        showText(toolbar)
-        toolbar.fontButtons[.handwriting]?.performClick(nil)
-        toolbar.moreFontsButton?.performClick(nil)
-        toolbar.fontSizeControl?.stepper.doubleValue = 23
-        if let stepper = toolbar.fontSizeControl?.stepper { _ = stepper.sendAction(stepper.action, to: stepper.target) }
-
-        #expect(recorder.fonts == [.handwriting])
-        #expect(recorder.fontListToggles == 1)
-        #expect(recorder.fontSizes == [23])
-    }
-
-    @Test func compactEnoughWithTextControls() {
-        let (toolbar, _) = make()
-        let plain = toolbar.fittingSize
-        showText(toolbar)
-        #expect(toolbar.fittingSize.width <= 480)
-        #expect(toolbar.fittingSize.height > plain.height)  // the text row
-    }
-
-    @Test func sizesItselfToFitContent() {
+    @Test func isOneRow() {
         let (toolbar, _) = make()
         #expect(toolbar.frame.width > 200)
-        #expect(toolbar.frame.height > 40)  // two rows
+        #expect(toolbar.frame.height < AnnotationToolbar.buttonSize.height * 2)
     }
 
     /// Regression: a single row was 812pt wide, overflowing small selections and screens.
+    /// Regression: at exactly 480 pt it measured 481 on CI's 1× runner (text widths differ by
+    /// scale), so it keeps a few points of headroom.
     @Test func compactEnoughForSmallScreens() {
         let (toolbar, _) = make()
-        #expect(toolbar.frame.width <= 480)
+        #expect(toolbar.frame.width <= 480 - 4)
+    }
+
+    @Test func readTextSitsJustBeforeSaveAndCopy() throws {
+        let (toolbar, _) = make()
+        toolbar.layoutSubtreeIfNeeded()
+        let readText = try #require(toolbar.commandButtons[.readText]).convert(NSPoint.zero, to: toolbar).x
+        let save = try #require(toolbar.commandButtons[.save]).convert(NSPoint.zero, to: toolbar).x
+        let copy = try #require(toolbar.commandButtons[.copy]).convert(NSPoint.zero, to: toolbar).x
+        let redo = try #require(toolbar.commandButtons[.redo]).convert(NSPoint.zero, to: toolbar).x
+        #expect(redo < readText)
+        #expect(readText < save)
+        #expect(save < copy)
+    }
+
+    @Test func saveIsAnOutlinedIconButton() {
+        let (toolbar, _) = make()
+        let save = toolbar.commandButtons[.save]
+        #expect(save is OutlineToolbarButton)
+        #expect(save?.title.isEmpty == true)
+        #expect(save?.intrinsicContentSize.height == AnnotationToolbar.buttonSize.height)
     }
 
     @Test func toolButtonsSendTheirTool() {
@@ -130,32 +76,20 @@ struct AnnotationToolbarTests {
         #expect(recorder.commands == AnnotationToolbar.commands)
     }
 
-    @Test func colorAndWidthButtonsSendTheirValue() {
-        let (toolbar, recorder) = make()
-        toolbar.colorButtons[.green]?.performClick(nil)
-        toolbar.widthButtons[.thick]?.performClick(nil)
-        #expect(recorder.colors == [.green])
-        #expect(recorder.widths == [.thick])
-    }
-
     @Test func updateReflectsSessionState() {
         let (toolbar, _) = make()
-        toolbar.update(tool: .marker, style: AnnotationStyle(color: .blue, width: .thin), canUndo: true, canRedo: false)
+        toolbar.update(tool: .marker, canUndo: true, canRedo: false)
 
         #expect(toolbar.toolButtons[.marker]?.state == .on)
         #expect(toolbar.toolButtons[.rectangle]?.state == .off)
-        #expect(toolbar.colorButtons[.blue]?.state == .on)
-        #expect(toolbar.colorButtons.filter { $0.value.state == .on }.count == 1)
-        #expect(toolbar.widthButtons[.thin]?.state == .on)
-        #expect(toolbar.widthButtons.filter { $0.value.state == .on }.count == 1)
         #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
         #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
     }
 
     @Test func noToolSelectedTurnsAllOff() {
         let (toolbar, _) = make()
-        toolbar.update(tool: .text, style: .default, canUndo: false, canRedo: false)
-        toolbar.update(tool: nil, style: .default, canUndo: false, canRedo: false)
+        toolbar.update(tool: .text, canUndo: false, canRedo: false)
+        toolbar.update(tool: nil, canUndo: false, canRedo: false)
         #expect(toolbar.toolButtons.values.allSatisfy { $0.state == .off })
     }
 
@@ -163,7 +97,6 @@ struct AnnotationToolbarTests {
         let (toolbar, _) = make()
         let buttons =
             Array(toolbar.toolButtons.values) + Array(toolbar.commandButtons.values)
-            + Array(toolbar.colorButtons.values) + Array(toolbar.widthButtons.values)
         #expect(buttons.allSatisfy { !($0.accessibilityLabel() ?? "").isEmpty })
         #expect(buttons.allSatisfy { !($0.toolTip ?? "").isEmpty })
     }
@@ -180,7 +113,7 @@ struct AnnotationToolbarTests {
 
     @Test func glyphButtonsAreBorderlessAndUniform() {
         let (toolbar, _) = make()
-        let glyphs = Array(toolbar.toolButtons.values) + toolbar.commandButtons.filter { $0.key != .copy }.map(\.value)
+        let glyphs = Array(toolbar.toolButtons.values) + toolbar.commandButtons.filter { ![.copy, .save].contains($0.key) }.map(\.value)
         toolbar.layoutSubtreeIfNeeded()
         #expect(glyphs.allSatisfy { !$0.isBordered })
         #expect(glyphs.allSatisfy { $0.frame.size == AnnotationToolbar.buttonSize })
@@ -201,7 +134,6 @@ struct AnnotationToolbarTests {
         toolbar.layoutSubtreeIfNeeded()
         let all =
             Array(toolbar.toolButtons.values) + Array(toolbar.commandButtons.values)
-            + Array(toolbar.colorButtons.values) + Array(toolbar.widthButtons.values)
         let inner = toolbar.bounds.insetBy(dx: AnnotationToolbar.insets.left, dy: AnnotationToolbar.insets.top)
         for button in all {
             let frame = button.convert(button.bounds, to: toolbar)
@@ -225,7 +157,7 @@ struct AnnotationToolbarTests {
     @Test func hoverAndToggleDoNotChangeLayout() {
         let (toolbar, _) = make()
         let size = toolbar.fittingSize
-        toolbar.update(tool: .pen, style: AnnotationStyle(color: .yellow, width: .thick), canUndo: true, canRedo: true)
+        toolbar.update(tool: .pen, canUndo: true, canRedo: true)
         #expect(toolbar.fittingSize == size)
     }
 }
@@ -234,11 +166,11 @@ struct AnnotationToolbarTests {
 struct AnnotationToolbarShortcutTests {
     @Test func tooltipsAdvertiseKeyboardShortcuts() {
         let toolbar = AnnotationToolbar(
-            actions: .init(selectTool: { _ in }, selectColor: { _ in }, selectWidth: { _ in }, command: { _ in }))
+            actions: .init(selectTool: { _ in }, command: { _ in }))
         #expect(toolbar.toolButtons[.rectangle]?.toolTip == "Rectangle (R)")
         #expect(toolbar.toolButtons[.pixelate]?.toolTip == "Pixelate (X)")
         #expect(toolbar.commandButtons[.copy]?.toolTip == "Copy (⌘C)")
-        #expect(toolbar.colorButtons[.red]?.toolTip == "Red (1)")
+        #expect(AnnotationToolbar.label(for: AnnotationColor.red) == "Red (1)")
     }
 }
 
@@ -313,11 +245,48 @@ struct ToolbarControlDrawingTests {
         #expect(button.intrinsicContentSize.height == AnnotationToolbar.buttonSize.height)
     }
 
-    @Test func selectedSwatchDrawsARing() throws {
-        let swatch = ColorSwatchButton(color: .green, label: "Green (4)")
-        swatch.setFrameSize(NSSize(width: AnnotationToolbar.swatchSize, height: AnnotationToolbar.swatchSize))
-        #expect(try centerAlpha(swatch) == 0)
-        swatch.state = .on
-        #expect(try centerAlpha(swatch) > 0)
+    /// CI renders at 1×, this Mac at 2×: check the border at both.
+    @Test(arguments: [1, 2])
+    func outlineBorderShowsAtEveryScale(scale: Int) throws {
+        let button = OutlineToolbarButton(symbol: "square.and.arrow.down", label: "Save (⌘S)")
+        button.setFrameSize(button.intrinsicContentSize)
+        let image = try TestRendering.render(button, scale: scale)
+        #expect(image.width == Int(button.bounds.width) * scale)
+        #expect(TestImages.pixel(image, x: image.width / 2, y: 0).a > 0)
+        #expect(TestImages.pixel(image, x: 0, y: image.height / 2).a > 0)
+    }
+
+    /// Regression: the Save icon sat a point low, centered by its padded bounds.
+    @Test(arguments: [1, 2])
+    func saveIconIsCenteredByWhatYouSee(scale: Int) throws {
+        let button = OutlineToolbarButton(symbol: "square.and.arrow.down", label: "Save (⌘S)")
+        button.setFrameSize(button.intrinsicContentSize)
+        let image = try TestRendering.render(button, scale: scale)
+        let inset = 3 * scale  // past the border
+        let inside = try #require(
+            image.cropping(to: CGRect(x: inset, y: inset, width: image.width - inset * 2, height: image.height - inset * 2)))
+        let ink = try #require(ImageInk.pixelBounds(of: inside))
+        let center = CGFloat(inside.width) / 2
+        #expect(abs(ink.midX - center) <= 1, "x \(ink.midX) vs \(center)")
+        #expect(abs(ink.midY - CGFloat(inside.height) / 2) <= 1, "y \(ink.midY)")
+    }
+
+    @Test func outlineButtonHasABorderAndFillsOnlyOnHoverAndPress() throws {
+        let button = OutlineToolbarButton(symbol: "square.and.arrow.down", label: "Save (⌘S)")
+        button.setFrameSize(button.intrinsicContentSize)
+        #expect(button.fillAlpha == 0)
+        // The border's top edge: row 0 at any scale (at 1× it's only that row).
+        let image = try render(button)
+        #expect(TestImages.pixel(image, x: image.width / 2, y: 0).a > 0)
+        #expect(TestImages.pixel(image, x: image.width / 7, y: image.height / 2).a == 0)  // no fill inside
+        button.mouseEntered(with: NSEvent())
+        #expect(button.fillAlpha > 0)
+        button.isHighlighted = true
+        let pressed = button.fillAlpha
+        button.mouseExited(with: NSEvent())
+        #expect(button.fillAlpha == pressed)
+        button.isHighlighted = false
+        #expect(button.fillAlpha == 0)
+        #expect(button.accessibilityLabel() == "Save (⌘S)")
     }
 }

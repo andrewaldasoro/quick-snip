@@ -119,12 +119,13 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        var requested: CGPoint?
-        app.session.onRequestTextEntry = { _, point in requested = point }
+        var requested: TextPlacement?
+        app.session.onRequestTextEntry = { _, placement in requested = placement }
         app.session.toggleTool(.text)
-        app.session.mouseDown(on: 1, at: CGPoint(x: 60, y: 60))
-        let origin = try #require(requested)
-        app.session.addText("Bug here", at: origin, on: 1)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 60, y: 60))  // a click
+        let placement = try #require(requested)
+        #expect(placement == .line(at: CGPoint(x: 60, y: 60)))
+        app.session.addText("Bug here", at: placement, on: 1)
         app.overlay.send(.copy)
 
         let image = try app.copied()
@@ -138,6 +139,34 @@ struct AnnotationFlowTests {
         #expect(changed > 20)
     }
 
+    /// Drag out a box with the text tool: the text wraps inside it, centered.
+    @Test func centeredTextWrapsInsideADraggedBox() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        var requested: TextPlacement?
+        app.session.onRequestTextEntry = { _, placement in requested = placement }
+        app.session.toggleTool(.text)
+        app.session.setAlignment(.center)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 160, y: 50))
+        let placement = try #require(requested)
+        #expect(placement == TextPlacement(origin: CGPoint(x: 40, y: 40), boxWidth: 120))
+        app.session.addText("Wrap this sentence onto more lines", at: placement, on: 1)
+        app.overlay.send(.copy)
+
+        let text = try #require(app.session.document.annotations.first)
+        #expect(text.bounds.width == 120)
+        #expect(text.bounds.height > TextLayout.lineHeight(text.style) * 1.5)  // wrapped
+        let image = try app.copied()
+        var changedOnSecondLine = 0
+        let secondLine = text.bounds.minY + TextLayout.lineHeight(text.style) * 1.5
+        for x in stride(from: CGFloat(40), to: 160, by: 1)
+        where app.pixel(image, atPoint: x, secondLine) != original(atPoint: x, secondLine) {
+            changedOnSecondLine += 1
+        }
+        #expect(changedOnSecondLine > 3)
+    }
+
     @Test func largeSerifTextIsExportedAtItsSizeAndRemembered() async throws {
         let store = TestDefaults()
         let app = launchApp(settings: AppSettings(defaults: store.defaults, defaultDirectory: TestImages.temporaryDirectory()))
@@ -146,7 +175,7 @@ struct AnnotationFlowTests {
         app.session.toggleTool(.text)
         app.session.setFont(.serif)
         app.session.setFontSize(60)
-        app.session.addText("WWW", at: CGPoint(x: 40, y: 40), on: 1)
+        app.session.addText("WWW", at: .line(at: CGPoint(x: 40, y: 40)), on: 1)
         app.overlay.send(.copy)
 
         // Default-size text would end ~30pt down; 60pt glyphs reach well past that.
@@ -192,7 +221,6 @@ struct AnnotationFlowTests {
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
         app.draw(.rectangle, from: CGPoint(x: 120, y: 40), to: CGPoint(x: 160, y: 80))
-        app.session.toggleTool(.rectangle)  // back to select/move
 
         // Drag the first rectangle down by 60pt.
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 120))
@@ -212,7 +240,6 @@ struct AnnotationFlowTests {
         await app.captureAndSelect()
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
-        app.session.toggleTool(.rectangle)  // back to select/move
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
         app.overlay.send(.copy)
@@ -228,7 +255,6 @@ struct AnnotationFlowTests {
         await app.captureAndSelect()
 
         app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
-        app.session.toggleTool(.rectangle)
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
         app.overlay.send(.undo)
@@ -239,6 +265,22 @@ struct AnnotationFlowTests {
         #expect(app.pixel(image, atPoint: 160, 100) == original(atPoint: 160, 100))
     }
 
+    /// Drawing turns the tool off and selects the shape, so it can be restyled and moved at once.
+    @Test func drawThenThickenAndMoveRightAway() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 100, y: 100))
+        app.session.setLineWidth(16)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 55, y: 40), to: CGPoint(x: 85, y: 60))  // top edge, between handles
+        app.overlay.send(.copy)
+
+        let image = try app.copied()
+        #expect(app.pixel(image, atPoint: 70, 100).isClose(to: .red))  // moved left edge, 30 pt right and 20 down
+        #expect(app.pixel(image, atPoint: 64, 110).isClose(to: .red))  // 6 pt into a 16 pt stroke
+        #expect(app.pixel(image, atPoint: 40, 70) == original(atPoint: 40, 70))  // old left edge clear
+    }
+
     @Test func freehandPenAndMarkerThenSave() async throws {
         let app = launchApp()
         defer { try? FileManager.default.removeItem(at: app.saveDirectory) }
@@ -246,6 +288,8 @@ struct AnnotationFlowTests {
 
         app.session.setColor(.green)
         app.draw(.pen, from: CGPoint(x: 40, y: 40), through: [CGPoint(x: 80, y: 60), CGPoint(x: 120, y: 40)], to: CGPoint(x: 160, y: 60))
+        // Pick the tool first: a color change with the pen still selected would recolor the pen.
+        app.session.toggleTool(.marker)
         app.session.setColor(.yellow)
         app.draw(.marker, from: CGPoint(x: 40, y: 150), to: CGPoint(x: 200, y: 150))
         app.overlay.send(.save)

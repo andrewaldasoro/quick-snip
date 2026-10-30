@@ -1,16 +1,15 @@
 import AppKit
 
 /// Full-screen view for one display: frozen image, dimming outside the selection, annotations,
-/// border, handles, size label, the annotation toolbar, the font list, and inline text entry.
+/// border, handles, size label, the annotation toolbar and style panel, an open dropdown list,
+/// and inline text entry.
 /// Flipped, so local points match `CaptureSession`.
-final class SelectionOverlayView: NSView, NSTextFieldDelegate {
+final class SelectionOverlayView: NSView {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
     static let borderColor = NSColor.white
     static let handleSize: CGFloat = 7
     static let annotationHandleSize: CGFloat = 7
     static let hoveredWindowBorderWidth: CGFloat = 3
-    /// Horizontal padding NSTextField adds before its text (line fragment padding).
-    static let textFieldInset: CGFloat = 2
 
     private let session: CaptureSession
     private let onCommand: @MainActor (OverlayCommand) -> Void
@@ -20,10 +19,12 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     private var frozenSource: CGImage
 
     private(set) var toolbar: AnnotationToolbar?
-    private(set) var textField: NSTextField?
-    private var textOrigin: CGPoint = .zero
+    private(set) var textEntry: TextEntry?
+    var textField: NSTextField? { textEntry?.field }
     private let fontFamilies: FontFamilyProviding
-    private(set) var fontList: FontListPanel?
+    private(set) var stylePanel: StylePanel?
+    /// The open style dropdown, if any.
+    private(set) var dropdown: (list: StyleList, panel: DropdownListPanel)?
 
     init(
         display: CapturedDisplay, session: CaptureSession, fontFamilies: FontFamilyProviding = SystemFontFamilies(),
@@ -67,10 +68,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             ))
     }
 
-    /// Cursor for a point in this view; the toolbar and font list always get an arrow.
+    /// Cursor for a point in this view; the toolbar, style panel and dropdown get an arrow.
     func cursor(at point: CGPoint) -> OverlayCursor {
-        if let toolbar, !toolbar.isHidden, toolbar.frame.contains(point) { return .arrow }
-        if let fontList, fontList.frame.contains(point) { return .arrow }
+        let controls: [NSView?] = [toolbar, stylePanel, dropdown?.panel]
+        if controls.contains(where: { $0.map { !$0.isHidden && $0.frame.contains(point) } ?? false }) { return .arrow }
         return session.cursor(on: display.displayID, at: point)
     }
 
@@ -99,7 +100,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
 
     // MARK: Session updates
 
-    /// Redraws and shows, hides, or repositions the toolbar.
+    /// Redraws and shows, hides, or repositions the toolbar and style panel.
     func sessionDidChange() {
         needsDisplay = true
 
@@ -107,23 +108,58 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             !session.isShowingCheatsheet
         else {
             toolbar?.isHidden = true
-            closeFontList()
+            stylePanel?.isHidden = true
+            closeDropdown()
             return
         }
-        if !session.showsTextStyle { closeFontList() }
         let toolbar = self.toolbar ?? makeToolbar()
         toolbar.update(
             tool: session.tool,
-            style: session.style,
-            textStyle: session.showsTextStyle ? session.textStyle : nil,
-            isShowingFontList: fontList != nil,
             canUndo: session.document.canUndo,
             canRedo: session.document.canRedo
         )
-        toolbar.frame = ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds)
+        toolbar.frame = pixelAligned(ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds))
         toolbar.isHidden = false
-        // Placed against the toolbar the way the toolbar is placed against the selection.
-        fontList?.frame = ToolbarLayout.frame(size: FontListPanel.size, selection: toolbar.frame, bounds: bounds)
+        updateStylePanel(toolbar: toolbar.frame, selection: selection)
+    }
+
+    private func updateStylePanel(toolbar: CGRect, selection: CGRect) {
+        guard let options = session.styleOptions else {
+            stylePanel?.isHidden = true
+            closeDropdown()
+            return
+        }
+        if let dropdown, StyleChoices.current(for: dropdown.list, options: options, color: session.styleColor) == nil { closeDropdown() }
+        let panel = stylePanel ?? makeStylePanel()
+        panel.update(options: options, color: session.styleColor, openList: dropdown?.list)
+        panel.frame = pixelAligned(StylePanelLayout.frame(size: panel.fittingSize, toolbar: toolbar, selection: selection, bounds: bounds))
+        panel.isHidden = false
+        if let dropdown, let button = panel.buttons[dropdown.list] {
+            // The buttons only have frames after a layout pass; the list hangs off one.
+            panel.layoutSubtreeIfNeeded()
+            let anchor = convert(button.bounds, from: button)
+            dropdown.panel.frame = pixelAligned(DropdownLayout.frame(size: dropdown.panel.preferredSize, anchor: anchor, bounds: bounds))
+        }
+    }
+
+    /// Panels placed from mouse positions and measured widths land on fractional points, where
+    /// the glass and every glyph in it render blurry; snap them to whole pixels.
+    private func pixelAligned(_ rect: CGRect) -> CGRect {
+        backingAlignedRect(rect, options: .alignAllEdgesNearest)
+    }
+
+    private func makeStylePanel() -> StylePanel {
+        let panel = StylePanel(
+            actions: .init(
+                openList: { [weak self] list in self?.toggleDropdown(list) },
+                selectAlignment: { [weak self] alignment in
+                    self?.session.setAlignment(alignment)
+                    self?.restoreFocus()
+                }
+            ))
+        addSubview(panel)
+        stylePanel = panel
+        return panel
     }
 
     private func makeToolbar() -> AnnotationToolbar {
@@ -132,25 +168,6 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
                 selectTool: { [weak self] tool in
                     self?.session.toggleTool(tool)
                     self?.restoreFocus()
-                },
-                selectColor: { [weak self] color in
-                    self?.session.setColor(color)
-                    self?.restoreFocus()
-                },
-                selectWidth: { [weak self] width in
-                    self?.session.setWidth(width)
-                    self?.restoreFocus()
-                },
-                selectFont: { [weak self] font in
-                    self?.session.setFont(font)
-                    self?.restoreFocus()
-                },
-                selectFontSize: { [weak self] size in
-                    self?.session.setFontSize(size)
-                    self?.restoreFocus()
-                },
-                toggleFontList: { [weak self] in
-                    self?.toggleFontList()
                 },
                 command: { [weak self] command in
                     self?.onCommand(command)
@@ -167,43 +184,52 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         if textField == nil { window?.makeFirstResponder(self) }
     }
 
-    /// Typing goes to a text field (annotation text, size, font search), not to shortcuts.
+    /// Typing goes to a text field (annotation text, font search), not to shortcuts.
     private var isTyping: Bool {
         textField != nil || window?.firstResponder is NSText
     }
 
-    // MARK: Font list
+    // MARK: Dropdowns
 
-    func toggleFontList() {
-        if fontList != nil {
-            closeFontList()
-        } else {
-            openFontList()
+    /// Opens a style dropdown's list under its button; the open one closes instead.
+    func toggleDropdown(_ list: StyleList) {
+        let wasOpen = dropdown?.list == list
+        closeDropdown()
+        if !wasOpen { openDropdown(list) }
+    }
+
+    private func openDropdown(_ list: StyleList) {
+        guard let options = session.styleOptions else { return }
+        let families = StyleChoices.isSearchable(list) ? FontCatalog(provider: fontFamilies).families : []
+        let panel = DropdownListPanel(
+            values: StyleChoices.values(for: list, options: options, fontFamilies: families),
+            current: StyleChoices.current(for: list, options: options, color: session.styleColor),
+            isSearchable: StyleChoices.isSearchable(list),
+            onPick: { [weak self] value in self?.apply(value) },
+            onClose: { [weak self] in self?.closeDropdown() }
+        )
+        addSubview(panel)
+        dropdown = (list, panel)
+        sessionDidChange()
+        window?.makeFirstResponder(panel.initialFirstResponder)
+    }
+
+    private func apply(_ value: StyleValue) {
+        closeDropdown()
+        switch value {
+        case .color(let color): session.setColor(color)
+        case .lineWidth(let width): session.setLineWidth(width)
+        case .font(let font): session.setFont(font)
+        case .fontSize(let size): session.setFontSize(size)
         }
     }
 
-    private func openFontList() {
-        let panel = FontListPanel(
-            catalog: FontCatalog(provider: fontFamilies),
-            current: session.textStyle.font,
-            onPick: { [weak self] family in
-                self?.session.setFont(.family(family))
-                self?.closeFontList()
-            },
-            onClose: { [weak self] in self?.closeFontList() }
-        )
-        addSubview(panel)
-        fontList = panel
-        sessionDidChange()
-        window?.makeFirstResponder(panel.searchField)
-    }
-
-    func closeFontList() {
-        guard let panel = fontList else { return }
-        fontList = nil
-        panel.removeFromSuperview()
+    func closeDropdown() {
+        guard let open = dropdown else { return }
+        dropdown = nil
+        open.panel.removeFromSuperview()
+        stylePanel?.markOpen(nil)
         restoreFocus()
-        sessionDidChange()
     }
 
     // MARK: Drawing
@@ -282,6 +308,18 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             outline.stroke()
             drawAnnotationHandles(of: selected)
         }
+        if let box = session.textBoxPreview {
+            drawTextBoxPreview(box)
+        }
+    }
+
+    /// The text box being dragged out: an accent outline, one line tall until text fills it.
+    private func drawTextBoxPreview(_ box: CGRect) {
+        let outline = NSBezierPath(rect: box.insetBy(dx: 0.5, dy: 0.5))
+        outline.lineWidth = 1
+        outline.setLineDash([4, 3], count: 2, phase: 0)
+        NSColor.controlAccentColor.setStroke()
+        outline.stroke()
     }
 
     /// Square handles on frame corners and edges, round ones on line ends.
@@ -350,72 +388,34 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
 
     // MARK: Text entry
 
-    func beginTextEntry(at point: CGPoint) {
+    func beginTextEntry(at placement: TextPlacement) {
         commitTextEntry()
-
-        let font = session.style.font.font(size: session.style.fontSize)
-        let field = NSTextField(string: "")
-        field.isBordered = false
-        field.isBezeled = false
-        field.drawsBackground = false
-        field.focusRingType = .none
-        field.font = font
-        field.textColor = session.style.color.nsColor
-        field.delegate = self
-        field.target = self
-        field.action = #selector(textFieldAction(_:))
-        field.cell?.isScrollable = true
-        field.cell?.wraps = false
-        field.frame = CGRect(
-            x: point.x - Self.textFieldInset,
-            y: point.y,
-            width: 40,
-            height: ceil(font.ascender - font.descender + font.leading) + 2
+        let entry = TextEntry(
+            placement: placement, style: session.style,
+            onCommit: { [weak self] text in self?.finishTextEntry(placing: text) },
+            onCancel: { [weak self] in self?.finishTextEntry(placing: nil) }
         )
-        field.setAccessibilityLabel("Annotation text")
-
-        addSubview(field)
-        textField = field
-        textOrigin = point
-        window?.makeFirstResponder(field)
+        addSubview(entry.field)
+        textEntry = entry
+        window?.makeFirstResponder(entry.field)
     }
 
     func commitTextEntry() {
-        guard let field = textField else { return }
-        textField = nil
-        let text = field.stringValue
-        field.removeFromSuperview()
-        window?.makeFirstResponder(self)
-        session.addText(text, at: textOrigin, on: display.displayID)
+        textEntry?.commit()
     }
 
     func cancelTextEntry() {
-        guard let field = textField else { return }
-        textField = nil
-        field.removeFromSuperview()
+        textEntry?.cancel()
+    }
+
+    private func finishTextEntry(placing text: String?) {
+        guard let entry = textEntry else { return }
+        textEntry = nil
+        entry.field.removeFromSuperview()
         window?.makeFirstResponder(self)
-    }
-
-    @objc private func textFieldAction(_ sender: NSTextField) {
-        commitTextEntry()
-    }
-
-    func controlTextDidChange(_ notification: Notification) {
-        guard let field = textField else { return }
-        let width = (field.attributedStringValue.size().width + Self.textFieldInset * 2 + 8).rounded(.up)
-        field.setFrameSize(NSSize(width: max(40, width), height: field.frame.height))
-    }
-
-    func controlTextDidEndEditing(_ notification: Notification) {
-        commitTextEntry()
-    }
-
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-            cancelTextEntry()
-            return true
+        if let text {
+            session.addText(text, at: entry.placement, on: display.displayID)
         }
-        return false
     }
 
     // MARK: Mouse
@@ -425,9 +425,9 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             commitTextEntry()
             return
         }
-        // A click outside the font list only closes it, like the cheatsheet.
-        if fontList != nil {
-            closeFontList()
+        // A click outside an open dropdown only closes it, like a menu.
+        if dropdown != nil {
+            closeDropdown()
             return
         }
         session.mouseDown(on: display.displayID, at: localPoint(of: event))
@@ -468,10 +468,10 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         return super.performKeyEquivalent(with: event)
     }
 
-    /// Esc closes the font list before it cancels the capture.
+    /// Esc closes an open dropdown before it cancels the capture.
     private func perform(_ command: OverlayCommand) {
-        if command == .cancel, fontList != nil {
-            closeFontList()
+        if command == .cancel, dropdown != nil {
+            closeDropdown()
             return
         }
         onCommand(command)

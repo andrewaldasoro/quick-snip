@@ -35,24 +35,14 @@ enum AnnotationColor: String, CaseIterable, Sendable {
     }
 }
 
-enum StrokeWidth: String, CaseIterable, Sendable {
-    case thin, medium, thick
-
-    var lineWidth: CGFloat {
-        switch self {
-        case .thin: 2
-        case .medium: 4
-        case .thick: 8
-        }
-    }
-}
-
 struct AnnotationStyle: Equatable, Sendable {
     var color: AnnotationColor = .red
-    var width: StrokeWidth = .medium
+    /// Line thickness in points, for every kind but text and pixelate.
+    var lineWidth: CGFloat = LineWidth.default
     /// Text annotations only.
     var font: TextFont = .system
     var fontSize: CGFloat = TextSize.default
+    var alignment: TextAlignment = .left
 
     static let `default` = AnnotationStyle()
 }
@@ -63,7 +53,9 @@ enum AnnotationKind: Equatable, Sendable {
     case arrow(from: CGPoint, to: CGPoint)
     case pen([CGPoint])
     case marker([CGPoint])
-    case text(String, origin: CGPoint)
+    /// `boxWidth` nil: one line placed with a click. Otherwise text wrapping inside a box
+    /// dragged out with the text tool. See `TextLayout`.
+    case text(String, origin: CGPoint, boxWidth: CGFloat? = nil)
     case pixelate(CGRect)
 }
 
@@ -96,8 +88,8 @@ struct Annotation: Identifiable, Equatable, Sendable {
 
     /// Stroke width as drawn (the marker is wider than the nominal width).
     var strokeWidth: CGFloat {
-        if case .marker = kind { return style.width.lineWidth * Self.markerWidthMultiplier }
-        return style.width.lineWidth
+        if case .marker = kind { return style.lineWidth * Self.markerWidthMultiplier }
+        return style.lineWidth
     }
 
     @MainActor
@@ -112,8 +104,8 @@ struct Annotation: Identifiable, Equatable, Sendable {
             return Geometry.rect(from: a, to: b).insetBy(dx: -strokeWidth * 2, dy: -strokeWidth * 2)
         case .pen(let points), .marker(let points):
             return Geometry.boundingRect(of: points).insetBy(dx: -half, dy: -half)
-        case .text(let string, let origin):
-            return CGRect(origin: origin, size: Self.attributedText(string, style: style).size())
+        case .text(let string, let origin, let boxWidth):
+            return TextLayout.frame(string, origin: origin, boxWidth: boxWidth, style: style)
         }
     }
 
@@ -146,18 +138,25 @@ struct Annotation: Identifiable, Equatable, Sendable {
         case .arrow(let a, let b): moved.kind = .arrow(from: move(a), to: move(b))
         case .pen(let points): moved.kind = .pen(points.map(move))
         case .marker(let points): moved.kind = .marker(points.map(move))
-        case .text(let string, let origin): moved.kind = .text(string, origin: move(origin))
+        case .text(let string, let origin, let boxWidth): moved.kind = .text(string, origin: move(origin), boxWidth: boxWidth)
         }
         return moved
     }
 
     @MainActor
     static func attributedText(_ string: String, style: AnnotationStyle) -> NSAttributedString {
-        NSAttributedString(
-            string: string,
-            attributes: [
-                .font: style.font.font(size: style.fontSize),
-                .foregroundColor: style.color.nsColor,
-            ])
+        TextLayout.attributed(string, style: style)
+    }
+
+    /// This annotation with `alignment`. One-line text keeps its place on screen: its origin
+    /// moves to the new anchor (start, middle or end).
+    @MainActor
+    func aligned(_ alignment: TextAlignment) -> Annotation {
+        var result = self
+        result.style.alignment = alignment
+        if case .text(let string, _, nil) = kind {
+            result.kind = .text(string, origin: TextLayout.origin(forLineFrame: bounds, alignment: alignment))
+        }
+        return result
     }
 }

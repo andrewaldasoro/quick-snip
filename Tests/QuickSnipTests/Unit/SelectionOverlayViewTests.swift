@@ -155,7 +155,8 @@ struct SelectionOverlayViewTests {
 @MainActor
 @Suite(.serialized)
 struct SelectionOverlayViewEditingTests {
-    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 480, height: 300), scale: 1)
+    /// Wide enough for the one-row toolbar (480 pt) and its margins.
+    private let display = TestImages.display(id: 1, frame: CGRect(x: 0, y: 0, width: 640, height: 300), scale: 1)
 
     private func makeView() -> (SelectionOverlayView, CaptureSession) {
         let session = CaptureSession(displays: [display])
@@ -196,7 +197,7 @@ struct SelectionOverlayViewEditingTests {
         TestSessions.drag(session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 100, y: 100))
 
         let toolbar = try #require(view.toolbar)
-        #expect(toolbar.toolButtons[.rectangle]?.state == .on)
+        #expect(toolbar.toolButtons[.rectangle]?.state == .off)  // off once the shape is drawn
         #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
     }
 
@@ -211,10 +212,10 @@ struct SelectionOverlayViewEditingTests {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
         session.toggleTool(.text)
-        session.mouseDown(on: 1, at: CGPoint(x: 80, y: 90))
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 80, y: 90), to: CGPoint(x: 80, y: 90))  // a click
 
         let field = try #require(view.textField)
-        #expect(field.frame.minX == 80 - SelectionOverlayView.textFieldInset)
+        #expect(field.frame.minX == 80 - TextEntry.fieldInset)
         field.stringValue = "Note"
         view.commitTextEntry()
 
@@ -227,7 +228,7 @@ struct SelectionOverlayViewEditingTests {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
         session.toggleTool(.text)
-        session.mouseDown(on: 1, at: CGPoint(x: 80, y: 90))
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 80, y: 90), to: CGPoint(x: 80, y: 90))  // a click
 
         try #require(view.textField).stringValue = "Draft"
         view.cancelTextEntry()
@@ -239,9 +240,9 @@ struct SelectionOverlayViewEditingTests {
     @Test func startingNewTextEntryCommitsThePrevious() throws {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
-        view.beginTextEntry(at: CGPoint(x: 80, y: 90))
+        view.beginTextEntry(at: .line(at: CGPoint(x: 80, y: 90)))
         try #require(view.textField).stringValue = "One"
-        view.beginTextEntry(at: CGPoint(x: 80, y: 120))
+        view.beginTextEntry(at: .line(at: CGPoint(x: 80, y: 120)))
 
         #expect(session.document.annotations.count == 1)
         #expect(view.textField != nil)
@@ -252,7 +253,7 @@ struct SelectionOverlayViewEditingTests {
         let session = CaptureSession(displays: [display])
         let view = SelectionOverlayView(display: display, session: session) { received.append($0) }
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
-        view.beginTextEntry(at: CGPoint(x: 80, y: 90))
+        view.beginTextEntry(at: .line(at: CGPoint(x: 80, y: 90)))
 
         let copy = try #require(
             NSEvent.keyEvent(
@@ -273,8 +274,9 @@ struct SelectionOverlayViewEditingTests {
         let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: rep)
         let image = try #require(rep.cgImage)
-        let scale = image.width / 480
-        #expect(TestImages.pixel(image, x: 100 * scale, y: 100 * scale).isClose(to: .red, tolerance: 60))
+        let scale = image.width / 640
+        // On the left edge, clear of the selected shape's handles.
+        #expect(TestImages.pixel(image, x: 100 * scale, y: 85 * scale).isClose(to: .red, tolerance: 60))
     }
 }
 

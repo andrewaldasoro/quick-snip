@@ -75,7 +75,7 @@ struct AnnotationResizerTests {
     }
 
     @Test func resizeKeepsIDAndStyle() {
-        let original = Annotation(kind: .rectangle(rect), style: AnnotationStyle(color: .blue, width: .thick))
+        let original = Annotation(kind: .rectangle(rect), style: AnnotationStyle(color: .blue, lineWidth: 8))
         let resized = AnnotationResizer.resized(original, dragging: .frame(.right), to: CGPoint(x: 200, y: 50))
         #expect(resized?.id == original.id)
         #expect(resized?.style == original.style)
@@ -146,5 +146,45 @@ struct AnnotationResizerTests {
         let text = annotation(.text("Hello", origin: .zero))
         let resized = AnnotationResizer.resized(text, dragging: .frame(.bottomRight), to: CGPoint(x: 0, y: 5000))
         #expect(resized?.style.fontSize == TextSize.range.upperBound)
+    }
+
+    // MARK: Text boxes
+
+    @Test func aTextBoxHasLeftAndRightHandles() {
+        let box = annotation(.text("Hello", origin: CGPoint(x: 10, y: 20), boxWidth: 120))
+        #expect(AnnotationResizer.handles(for: box).map(\.handle) == [.frame(.left), .frame(.right)])
+        #expect(AnnotationResizer.handles(for: box).first?.point.x == 10)
+    }
+
+    @Test func draggingABoxEdgeChangesItsWidthOnly() {
+        let box = annotation(.text("Hello", origin: CGPoint(x: 10, y: 20), boxWidth: 120))
+        let wider = AnnotationResizer.resized(box, dragging: .frame(.right), to: CGPoint(x: 200, y: 999))
+        let fromLeft = AnnotationResizer.resized(box, dragging: .frame(.left), to: CGPoint(x: 40, y: 0))
+        #expect(wider?.kind == .text("Hello", origin: CGPoint(x: 10, y: 20), boxWidth: 190))
+        #expect(fromLeft?.kind == .text("Hello", origin: CGPoint(x: 40, y: 20), boxWidth: 90))
+        #expect(wider?.style.fontSize == TextSize.default)
+    }
+
+    @Test func aBoxCantGetNarrowerThanTheMinimum() {
+        let box = annotation(.text("Hello", origin: CGPoint(x: 10, y: 20), boxWidth: 120))
+        #expect(AnnotationResizer.resized(box, dragging: .frame(.right), to: CGPoint(x: 20, y: 0)) == nil)
+        #expect(AnnotationResizer.resized(box, dragging: .frame(.topLeft), to: .zero) == nil)
+    }
+
+    @Test func scalingCenteredTextKeepsItsAnchorConsistent() throws {
+        var style = AnnotationStyle.default
+        style.alignment = .center
+        let text = Annotation(kind: .text("Hello", origin: CGPoint(x: 200, y: 100)), style: style)
+        let box = text.bounds
+
+        let resized = try #require(
+            AnnotationResizer.resized(text, dragging: .frame(.bottomRight), to: CGPoint(x: box.maxX, y: box.minY + box.height * 2)))
+
+        #expect(abs(resized.bounds.minX - box.minX) < 0.001)  // the opposite corner stays
+        guard case .text(_, let origin, nil) = resized.kind else {
+            Issue.record("Expected one-line text")
+            return
+        }
+        #expect(abs(origin.x - resized.bounds.midX) < 0.001)
     }
 }

@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Mouse routing:
 /// - Selection handles always resize the selection.
-/// - With a tool, dragging inside the selection draws (text: click to type).
+/// - With a tool, dragging inside the selection draws (text: click for a line, drag for a box).
 /// - Without a tool, the selected annotation's handles resize it, dragging an annotation moves
 ///   it; otherwise the drag moves/creates the selection. Annotation handles win over the
 ///   selection's, since the user just picked that annotation.
@@ -37,6 +37,8 @@ final class CaptureSession {
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
     private var resize: (original: Annotation, handle: AnnotationHandle)?
+    /// A drag with the text tool, which becomes a text box (or a click's single line).
+    private var textBoxDrag: (start: CGPoint, end: CGPoint)?
     /// In-progress drawing, or the moved or resized copy of an annotation while dragging.
     private var draft: Annotation?
 
@@ -47,7 +49,7 @@ final class CaptureSession {
     /// The text font or size changed, so it can be remembered for the next capture.
     var onTextStyleChange: (@MainActor (_ font: TextFont, _ size: CGFloat) -> Void)?
     /// Asks the overlay of a display to start text entry at a display-local point.
-    var onRequestTextEntry: (@MainActor (_ displayID: CGDirectDisplayID, _ point: CGPoint) -> Void)?
+    var onRequestTextEntry: (@MainActor (_ displayID: CGDirectDisplayID, _ placement: TextPlacement) -> Void)?
 
     init(displays: [CapturedDisplay], style: AnnotationStyle = .default) {
         self.displays = displays
@@ -109,20 +111,43 @@ final class CaptureSession {
         selectedAnnotationID.flatMap { id in visibleAnnotations.first { $0.id == id } }
     }
 
+    /// The box being dragged out with the text tool, once it's wide enough to be one.
+    var textBoxPreview: CGRect? {
+        guard let drag = textBoxDrag else { return nil }
+        let box = Geometry.rect(from: drag.start, to: drag.end)
+        return box.width >= TextLayout.minimumBoxWidth ? box : nil
+    }
+
+    /// The color the style panel shows: the selected annotation's, otherwise what's next drawn.
+    var styleColor: AnnotationColor {
+        selectedAnnotation?.style.color ?? style.color
+    }
+
     /// The handle of the selected annotation under `point`, while no tool is active.
     func annotationHandle(on id: CGDirectDisplayID, at point: CGPoint) -> AnnotationHandle? {
         guard tool == nil, id == activeDisplayID, let selected = selectedAnnotation else { return nil }
         return AnnotationResizer.hitTest(point, on: selected)
     }
 
-    /// The text tool is active or a text annotation is selected: the toolbar offers font and size.
-    var showsTextStyle: Bool {
-        tool == .text || selectedTextStyle != nil
+    /// What the style panel shows: the selected annotation's style, otherwise what the active
+    /// tool will draw with. Nil when there's neither, or for pixelate, which has no style.
+    var styleOptions: StyleOptions? {
+        if let selected = selectedAnnotation {
+            return Self.options(for: selected.kind, style: selected.style)
+        }
+        switch tool {
+        case nil, .pixelate: return nil
+        case .text: return .text(font: style.font, size: style.fontSize, alignment: style.alignment)
+        default: return .stroke(lineWidth: style.lineWidth)
+        }
     }
 
-    /// Font and size the toolbar shows: the selected text's, otherwise what new text gets.
-    var textStyle: AnnotationStyle {
-        selectedTextStyle ?? style
+    private static func options(for kind: AnnotationKind, style: AnnotationStyle) -> StyleOptions? {
+        switch kind {
+        case .pixelate: nil
+        case .text: .text(font: style.font, size: style.fontSize, alignment: style.alignment)
+        case .rectangle, .line, .arrow, .pen, .marker: .stroke(lineWidth: style.lineWidth)
+        }
     }
 
     private var selectedTextStyle: AnnotationStyle? {
@@ -174,7 +199,7 @@ final class CaptureSession {
             guard let selection, selection.contains(point) else { return }
             selectedAnnotationID = nil
             if tool == .text {
-                onRequestTextEntry?(id, point)
+                textBoxDrag = (point, point)
             } else {
                 builder = AnnotationBuilder(tool: tool, style: style, start: point)
                 draft = builder?.annotation
@@ -212,6 +237,8 @@ final class CaptureSession {
             builder.add(clampToSelection(point))
             self.builder = builder
             draft = builder.annotation
+        } else if let drag = textBoxDrag {
+            textBoxDrag = (drag.start, clampToSelection(point))
         } else if let move {
             draft = move.original.offsetBy(dx: point.x - move.start.x, dy: point.y - move.start.y)
         } else if let resize {
@@ -230,7 +257,12 @@ final class CaptureSession {
             draft = nil
             if let annotation = builder.finish() {
                 document.add(annotation)
+                selectJustAdded(annotation)
             }
+        } else if let drag = textBoxDrag {
+            textBoxDrag = nil
+            let end = clampToSelection(point)
+            onRequestTextEntry?(id, TextPlacement.from(drag: drag.start, to: end, minimumBoxWidth: TextLayout.minimumBoxWidth))
         } else if let move {
             self.move = nil
             draft = nil
@@ -293,9 +325,12 @@ final class CaptureSession {
         notify()
     }
 
-    func setWidth(_ width: StrokeWidth) {
-        style.width = width
-        restyleSelectedAnnotation { $0.width = width }
+    /// Applies to new shapes and to the selected one (not text or pixelate, which have no line).
+    func setLineWidth(_ width: CGFloat) {
+        style.lineWidth = width
+        if case .stroke = styleOptions {
+            restyleSelectedAnnotation { $0.lineWidth = width }
+        }
         notify()
     }
 
@@ -314,10 +349,31 @@ final class CaptureSession {
         notify()
     }
 
-    func addText(_ text: String, at origin: CGPoint, on id: CGDirectDisplayID) {
+    /// Applies to new text and to the selected text; one-line text keeps its place on screen.
+    func setAlignment(_ alignment: TextAlignment) {
+        style.alignment = alignment
+        if let selected = selectedAnnotation, case .text = selected.kind {
+            document.update(selected.aligned(alignment), actionName: "Change Style")
+        }
+        notify()
+    }
+
+    func addText(_ text: String, at placement: TextPlacement, on id: CGDirectDisplayID) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, id == activeDisplayID else { return }
-        document.add(Annotation(kind: .text(trimmed, origin: origin), style: style))
+        let kind = AnnotationKind.text(trimmed, origin: placement.origin, boxWidth: placement.boxWidth)
+        let annotation = Annotation(kind: kind, style: style)
+        document.add(annotation)
+        selectJustAdded(annotation)
+        // The document's change notice went out before the tool turned off.
+        notify()
+    }
+
+    /// After drawing, the tool turns off and the new annotation is selected, so its handles
+    /// and the style panel work on it right away.
+    private func selectJustAdded(_ annotation: Annotation) {
+        tool = nil
+        selectedAnnotationID = annotation.id
     }
 
     @discardableResult
