@@ -4,14 +4,12 @@ import AppKit
 /// border, handles, size label, the annotation toolbar and style panel, an open dropdown list,
 /// and inline text entry.
 /// Flipped, so local points match `CaptureSession`.
-final class SelectionOverlayView: NSView, NSTextFieldDelegate {
+final class SelectionOverlayView: NSView {
     static let dimColor = NSColor.black.withAlphaComponent(0.45)
     static let borderColor = NSColor.white
     static let handleSize: CGFloat = 7
     static let annotationHandleSize: CGFloat = 7
     static let hoveredWindowBorderWidth: CGFloat = 3
-    /// Horizontal padding NSTextField adds before its text (line fragment padding).
-    static let textFieldInset: CGFloat = 2
 
     private let session: CaptureSession
     private let onCommand: @MainActor (OverlayCommand) -> Void
@@ -21,8 +19,8 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     private var frozenSource: CGImage
 
     private(set) var toolbar: AnnotationToolbar?
-    private(set) var textField: NSTextField?
-    private var textOrigin: CGPoint = .zero
+    private(set) var textEntry: TextEntry?
+    var textField: NSTextField? { textEntry?.field }
     private let fontFamilies: FontFamilyProviding
     private(set) var stylePanel: StylePanel?
     /// The open style dropdown, if any.
@@ -117,7 +115,6 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         let toolbar = self.toolbar ?? makeToolbar()
         toolbar.update(
             tool: session.tool,
-            style: session.style,
             canUndo: session.document.canUndo,
             canRedo: session.document.canRedo
         )
@@ -134,7 +131,7 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
         }
         if let dropdown, StyleChoices.current(for: dropdown.list, options: options) == nil { closeDropdown() }
         let panel = stylePanel ?? makeStylePanel()
-        panel.update(options: options, openList: dropdown?.list)
+        panel.update(options: options, color: session.styleColor, openList: dropdown?.list)
         panel.frame = StylePanelLayout.frame(size: panel.fittingSize, toolbar: toolbar, selection: selection, bounds: bounds)
         panel.isHidden = false
         if let dropdown, let button = panel.buttons[dropdown.list] {
@@ -145,7 +142,18 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func makeStylePanel() -> StylePanel {
-        let panel = StylePanel { [weak self] list, _ in self?.toggleDropdown(list) }
+        let panel = StylePanel(
+            actions: .init(
+                openList: { [weak self] list in self?.toggleDropdown(list) },
+                selectColor: { [weak self] color in
+                    self?.session.setColor(color)
+                    self?.restoreFocus()
+                },
+                selectAlignment: { [weak self] alignment in
+                    self?.session.setAlignment(alignment)
+                    self?.restoreFocus()
+                }
+            ))
         addSubview(panel)
         stylePanel = panel
         return panel
@@ -156,10 +164,6 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             actions: .init(
                 selectTool: { [weak self] tool in
                     self?.session.toggleTool(tool)
-                    self?.restoreFocus()
-                },
-                selectColor: { [weak self] color in
-                    self?.session.setColor(color)
                     self?.restoreFocus()
                 },
                 command: { [weak self] command in
@@ -312,6 +316,18 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
             outline.stroke()
             drawAnnotationHandles(of: selected)
         }
+        if let box = session.textBoxPreview {
+            drawTextBoxPreview(box)
+        }
+    }
+
+    /// The text box being dragged out: an accent outline, one line tall until text fills it.
+    private func drawTextBoxPreview(_ box: CGRect) {
+        let outline = NSBezierPath(rect: box.insetBy(dx: 0.5, dy: 0.5))
+        outline.lineWidth = 1
+        outline.setLineDash([4, 3], count: 2, phase: 0)
+        NSColor.controlAccentColor.setStroke()
+        outline.stroke()
     }
 
     /// Square handles on frame corners and edges, round ones on line ends.
@@ -380,72 +396,34 @@ final class SelectionOverlayView: NSView, NSTextFieldDelegate {
 
     // MARK: Text entry
 
-    func beginTextEntry(at point: CGPoint) {
+    func beginTextEntry(at placement: TextPlacement) {
         commitTextEntry()
-
-        let font = session.style.font.font(size: session.style.fontSize)
-        let field = NSTextField(string: "")
-        field.isBordered = false
-        field.isBezeled = false
-        field.drawsBackground = false
-        field.focusRingType = .none
-        field.font = font
-        field.textColor = session.style.color.nsColor
-        field.delegate = self
-        field.target = self
-        field.action = #selector(textFieldAction(_:))
-        field.cell?.isScrollable = true
-        field.cell?.wraps = false
-        field.frame = CGRect(
-            x: point.x - Self.textFieldInset,
-            y: point.y,
-            width: 40,
-            height: ceil(font.ascender - font.descender + font.leading) + 2
+        let entry = TextEntry(
+            placement: placement, style: session.style,
+            onCommit: { [weak self] text in self?.finishTextEntry(placing: text) },
+            onCancel: { [weak self] in self?.finishTextEntry(placing: nil) }
         )
-        field.setAccessibilityLabel("Annotation text")
-
-        addSubview(field)
-        textField = field
-        textOrigin = point
-        window?.makeFirstResponder(field)
+        addSubview(entry.field)
+        textEntry = entry
+        window?.makeFirstResponder(entry.field)
     }
 
     func commitTextEntry() {
-        guard let field = textField else { return }
-        textField = nil
-        let text = field.stringValue
-        field.removeFromSuperview()
-        window?.makeFirstResponder(self)
-        session.addText(text, at: textOrigin, on: display.displayID)
+        textEntry?.commit()
     }
 
     func cancelTextEntry() {
-        guard let field = textField else { return }
-        textField = nil
-        field.removeFromSuperview()
+        textEntry?.cancel()
+    }
+
+    private func finishTextEntry(placing text: String?) {
+        guard let entry = textEntry else { return }
+        textEntry = nil
+        entry.field.removeFromSuperview()
         window?.makeFirstResponder(self)
-    }
-
-    @objc private func textFieldAction(_ sender: NSTextField) {
-        commitTextEntry()
-    }
-
-    func controlTextDidChange(_ notification: Notification) {
-        guard let field = textField else { return }
-        let width = (field.attributedStringValue.size().width + Self.textFieldInset * 2 + 8).rounded(.up)
-        field.setFrameSize(NSSize(width: max(40, width), height: field.frame.height))
-    }
-
-    func controlTextDidEndEditing(_ notification: Notification) {
-        commitTextEntry()
-    }
-
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-            cancelTextEntry()
-            return true
+        if let text {
+            session.addText(text, at: entry.placement, on: display.displayID)
         }
-        return false
     }
 
     // MARK: Mouse

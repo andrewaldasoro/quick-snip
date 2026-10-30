@@ -4,6 +4,6 @@ import CoreGraphics
 enum StyleOptions: Equatable, Sendable {
     /// Shapes, lines and strokes: their line width.
     case stroke(lineWidth: CGFloat)
-    /// Text: its font and size.
-    case text(font: TextFont, size: CGFloat)
+    /// Text: its font, size and alignment.
+    case text(font: TextFont, size: CGFloat, alignment: TextAlignment)
 }

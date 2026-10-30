@@ -1,16 +1,15 @@
 import AppKit
 
 /// Floating toolbar anchored to the selection, styled like a built-in macOS toolbar:
-/// a glass panel, borderless glyph buttons, round color swatches, and one prominent
-/// primary action (Copy).
+/// a glass panel, borderless glyph buttons, an outlined Save and one prominent primary
+/// action (Copy).
 ///
-/// Top row: cancel | tools | undo, redo | save, Copy. Bottom row: colors | read text.
-/// Line width, font and size live in `StylePanel` next to it.
+/// One row: cancel | tools | undo, redo | read text, save, Copy. Colors, line width, font,
+/// size and alignment live in `StylePanel` next to it.
 /// Every choice is an inline control: pop-up menus would open below the overlay's level.
 final class AnnotationToolbar: NSView {
     struct Actions {
         var selectTool: @MainActor (AnnotationTool) -> Void
-        var selectColor: @MainActor (AnnotationColor) -> Void
         var command: @MainActor (OverlayCommand) -> Void
     }
 
@@ -23,16 +22,12 @@ final class AnnotationToolbar: NSView {
     private let actions: Actions
     private(set) var toolButtons: [AnnotationTool: NSButton] = [:]
     private(set) var commandButtons: [OverlayCommand: NSButton] = [:]
-    private(set) var colorButtons: [AnnotationColor: NSButton] = [:]
 
     init(actions: Actions) {
         self.actions = actions
         super.init(frame: .zero)
 
-        let rows = NSStackView(views: [makeMainRow(), makeStyleRow()])
-        rows.orientation = .vertical
-        rows.alignment = .leading
-        rows.spacing = 4
+        let rows = makeRow()
         rows.translatesAutoresizingMaskIntoConstraints = false
 
         // Padding as required constraints: a `.leading` stack's own edgeInsets don't hold
@@ -71,12 +66,9 @@ final class AnnotationToolbar: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func update(tool: AnnotationTool?, style: AnnotationStyle, canUndo: Bool, canRedo: Bool) {
+    func update(tool: AnnotationTool?, canUndo: Bool, canRedo: Bool) {
         for (candidate, button) in toolButtons {
             button.state = candidate == tool ? .on : .off
-        }
-        for (color, button) in colorButtons {
-            button.state = color == style.color ? .on : .off
         }
         commandButtons[.undo]?.isEnabled = canUndo
         commandButtons[.redo]?.isEnabled = canRedo
@@ -101,7 +93,7 @@ final class AnnotationToolbar: NSView {
         return effect
     }
 
-    private func makeMainRow() -> NSStackView {
+    private func makeRow() -> NSStackView {
         let cancel = makeCommandButton(.cancel)
 
         let tools = AnnotationTool.allCases.enumerated().map { index, tool in
@@ -114,32 +106,17 @@ final class AnnotationToolbar: NSView {
         }
 
         let history = [makeCommandButton(.undo), makeCommandButton(.redo)]
-        let output = [makeCommandButton(.save), makeCommandButton(.copy)]
+        let output = [makeCommandButton(.readText), makeCommandButton(.save), makeCommandButton(.copy)]
 
         return row(groups: [[cancel], tools, history, output])
-    }
-
-    private func makeStyleRow() -> NSStackView {
-        let colors = AnnotationColor.allCases.enumerated().map { index, color in
-            let button = ColorSwatchButton(color: color, label: Self.label(for: color))
-            button.target = self
-            button.action = #selector(colorClicked(_:))
-            button.tag = index
-            colorButtons[color] = button
-            return button as NSView
-        }
-
-        // Line the swatches up under the tools, past the cancel button.
-        // Read Text sits here: the top row is already as wide as small displays allow.
-        let row = row(groups: [colors, [makeCommandButton(.readText)]])
-        row.edgeInsets.left = Self.buttonSize.width + Self.groupSpacing * 2 + ToolbarDivider.width
-        return row
     }
 
     private func makeCommandButton(_ command: OverlayCommand) -> NSButton {
         let button: NSButton
         if command == .copy {
             button = PrimaryToolbarButton(title: "Copy", symbol: Self.symbol(for: command), label: Self.label(for: command))
+        } else if command == .save {
+            button = OutlineToolbarButton(symbol: Self.symbol(for: command), label: Self.label(for: command))
         } else {
             button = ToolbarButton(symbol: Self.symbol(for: command), label: Self.label(for: command), toggles: false)
         }
@@ -150,7 +127,7 @@ final class AnnotationToolbar: NSView {
         return button
     }
 
-    private static let groupSpacing: CGFloat = 6
+    private static let groupSpacing: CGFloat = 5
 
     /// Groups of items, each tight together, with hairline dividers between groups.
     private func row(groups: [[NSView]]) -> NSStackView {
@@ -176,10 +153,6 @@ final class AnnotationToolbar: NSView {
 
     @objc private func toolClicked(_ sender: NSButton) {
         actions.selectTool(AnnotationTool.allCases[sender.tag])
-    }
-
-    @objc private func colorClicked(_ sender: NSButton) {
-        actions.selectColor(AnnotationColor.allCases[sender.tag])
     }
 
     @objc private func commandClicked(_ sender: NSButton) {

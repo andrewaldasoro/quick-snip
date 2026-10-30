@@ -4,7 +4,8 @@ import CoreGraphics
 ///
 /// Rectangles and pixelate get all eight frame handles, lines and arrows one per end, and
 /// freehand strokes the four corners of their points' bounding box (scaled as a whole), and
-/// text the four corners of its box (scaling the font size, the opposite corner staying put).
+/// one-line text the four corners of its frame (scaling the font size, the opposite corner
+/// staying put), and boxed text its left and right edges (the box's width; text rewraps).
 @MainActor
 enum AnnotationResizer {
     static let hitTolerance = SelectionEditor.hitTolerance
@@ -17,8 +18,11 @@ enum AnnotationResizer {
             return [(.start, from), (.end, to)]
         case .pen(let points), .marker(let points):
             return cornerHandles(of: Geometry.boundingRect(of: points))
-        case .text:
+        case .text(_, _, nil):
             return cornerHandles(of: annotation.bounds)
+        case .text:
+            let box = annotation.bounds
+            return [SelectionHandle.left, .right].map { (.frame($0), $0.point(in: box)) }
         }
     }
 
@@ -54,8 +58,10 @@ enum AnnotationResizer {
         case (.marker(let points), .frame(let frame)):
             guard let new = scaled(points, frame, to: point) else { return nil }
             result.kind = .marker(new)
-        case (.text(let string, _), .frame(let frame)) where frame.isCorner:
+        case (.text(let string, _, nil), .frame(let frame)) where frame.isCorner:
             return scaledText(original, string, frame, to: point)
+        case (.text(let string, let origin, _?), .frame(let frame)) where frame == .left || frame == .right:
+            return resizedBox(original, string, origin: origin, frame, to: point)
         default:
             return nil
         }
@@ -78,8 +84,20 @@ enum AnnotationResizer {
         let fixed = opposite(of: handle).point(in: box)
         let isLeft = handle == .topLeft || handle == .bottomLeft
         let isTop = handle == .topLeft || handle == .topRight
-        let origin = CGPoint(x: isLeft ? fixed.x - size.width : fixed.x, y: isTop ? fixed.y - size.height : fixed.y)
-        result.kind = .text(string, origin: origin)
+        let frame = CGRect(
+            x: isLeft ? fixed.x - size.width : fixed.x, y: isTop ? fixed.y - size.height : fixed.y, width: size.width, height: size.height)
+        result.kind = .text(string, origin: TextLayout.origin(forLineFrame: frame, alignment: original.style.alignment))
+        return result
+    }
+
+    /// A text box gets wider or narrower from its left or right edge; its text rewraps.
+    private static func resizedBox(
+        _ original: Annotation, _ string: String, origin: CGPoint, _ handle: SelectionHandle, to point: CGPoint
+    ) -> Annotation? {
+        let new = handle.resize(original.bounds, to: point)
+        guard new.width >= TextLayout.minimumBoxWidth else { return nil }
+        var result = original
+        result.kind = .text(string, origin: CGPoint(x: new.minX, y: origin.y), boxWidth: new.width)
         return result
     }
 

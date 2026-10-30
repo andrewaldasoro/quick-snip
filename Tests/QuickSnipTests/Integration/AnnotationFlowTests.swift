@@ -119,12 +119,13 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        var requested: CGPoint?
-        app.session.onRequestTextEntry = { _, point in requested = point }
+        var requested: TextPlacement?
+        app.session.onRequestTextEntry = { _, placement in requested = placement }
         app.session.toggleTool(.text)
-        app.session.mouseDown(on: 1, at: CGPoint(x: 60, y: 60))
-        let origin = try #require(requested)
-        app.session.addText("Bug here", at: origin, on: 1)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 60, y: 60))  // a click
+        let placement = try #require(requested)
+        #expect(placement == .line(at: CGPoint(x: 60, y: 60)))
+        app.session.addText("Bug here", at: placement, on: 1)
         app.overlay.send(.copy)
 
         let image = try app.copied()
@@ -138,6 +139,34 @@ struct AnnotationFlowTests {
         #expect(changed > 20)
     }
 
+    /// Drag out a box with the text tool: the text wraps inside it, centered.
+    @Test func centeredTextWrapsInsideADraggedBox() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        var requested: TextPlacement?
+        app.session.onRequestTextEntry = { _, placement in requested = placement }
+        app.session.toggleTool(.text)
+        app.session.setAlignment(.center)
+        TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 160, y: 50))
+        let placement = try #require(requested)
+        #expect(placement == TextPlacement(origin: CGPoint(x: 40, y: 40), boxWidth: 120))
+        app.session.addText("Wrap this sentence onto more lines", at: placement, on: 1)
+        app.overlay.send(.copy)
+
+        let text = try #require(app.session.document.annotations.first)
+        #expect(text.bounds.width == 120)
+        #expect(text.bounds.height > TextLayout.lineHeight(text.style) * 1.5)  // wrapped
+        let image = try app.copied()
+        var changedOnSecondLine = 0
+        let secondLine = text.bounds.minY + TextLayout.lineHeight(text.style) * 1.5
+        for x in stride(from: CGFloat(40), to: 160, by: 1)
+        where app.pixel(image, atPoint: x, secondLine) != original(atPoint: x, secondLine) {
+            changedOnSecondLine += 1
+        }
+        #expect(changedOnSecondLine > 3)
+    }
+
     @Test func largeSerifTextIsExportedAtItsSizeAndRemembered() async throws {
         let store = TestDefaults()
         let app = launchApp(settings: AppSettings(defaults: store.defaults, defaultDirectory: TestImages.temporaryDirectory()))
@@ -146,7 +175,7 @@ struct AnnotationFlowTests {
         app.session.toggleTool(.text)
         app.session.setFont(.serif)
         app.session.setFontSize(60)
-        app.session.addText("WWW", at: CGPoint(x: 40, y: 40), on: 1)
+        app.session.addText("WWW", at: .line(at: CGPoint(x: 40, y: 40)), on: 1)
         app.overlay.send(.copy)
 
         // Default-size text would end ~30pt down; 60pt glyphs reach well past that.

@@ -30,7 +30,7 @@ enum StyleChoices {
         case (.font, .text):
             let installed = fontFamilies.map { StyleValue.font(.family($0)) }
             return TextFont.curated.map(StyleValue.font) + installed
-        case (.fontSize, .text(_, let size)):
+        case (.fontSize, .text(_, let size, _)):
             return TextSize.choices(including: size).map(StyleValue.fontSize)
         default:
             return []
@@ -41,8 +41,8 @@ enum StyleChoices {
     static func current(for list: StyleList, options: StyleOptions) -> StyleValue? {
         switch (list, options) {
         case (.lineWidth, .stroke(let width)): .lineWidth(width)
-        case (.font, .text(let font, _)): .font(font)
-        case (.fontSize, .text(_, let size)): .fontSize(size)
+        case (.font, .text(let font, _, _)): .font(font)
+        case (.fontSize, .text(_, let size, _)): .fontSize(size)
         default: nil
         }
     }

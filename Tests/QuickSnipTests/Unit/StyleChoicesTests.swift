@@ -4,7 +4,7 @@ import Testing
 
 struct StyleChoicesTests {
     private let stroke = StyleOptions.stroke(lineWidth: 4)
-    private let text = StyleOptions.text(font: .serif, size: 22)
+    private let text = StyleOptions.text(font: .serif, size: 22, alignment: .left)
 
     @Test func widthListHasEveryPresetAndOpensOnTheCurrentOne() {
         #expect(StyleChoices.values(for: .lineWidth, options: stroke, fontFamilies: []) == LineWidth.presets.map(StyleValue.lineWidth))
@@ -18,9 +18,9 @@ struct StyleChoicesTests {
     }
 
     @Test func sizeListIncludesAnOddCurrentSize() {
-        let values = StyleChoices.values(for: .fontSize, options: .text(font: .system, size: 41), fontFamilies: [])
+        let values = StyleChoices.values(for: .fontSize, options: .text(font: .system, size: 41, alignment: .left), fontFamilies: [])
         #expect(values.contains(.fontSize(41)))
-        #expect(StyleChoices.current(for: .fontSize, options: .text(font: .system, size: 41)) == .fontSize(41))
+        #expect(StyleChoices.current(for: .fontSize, options: .text(font: .system, size: 41, alignment: .left)) == .fontSize(41))
     }
 
     @Test(arguments: [StyleList.font, .fontSize])

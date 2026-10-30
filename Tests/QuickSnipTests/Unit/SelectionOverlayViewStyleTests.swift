@@ -206,6 +206,75 @@ struct SelectionOverlayViewStyleTests {
         #expect(received.isEmpty)
     }
 
+    // MARK: Colors and alignment
+
+    @Test func panelColorsColorWhatsSelected() throws {
+        let harness = make()
+        harness.session.toggleTool(.rectangle)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
+        let panel = try #require(harness.view.stylePanel)
+
+        panel.colorButtons[.green]?.performClick(nil)
+
+        #expect(harness.session.document.annotations.first?.style.color == .green)
+        #expect(panel.colorButtons[.green]?.state == .on)
+    }
+
+    @Test func alignmentButtonsAlignText() throws {
+        let harness = make()
+        harness.session.toggleTool(.text)
+        let panel = try #require(harness.view.stylePanel)
+
+        panel.alignmentButtons[.center]?.performClick(nil)
+
+        #expect(harness.session.style.alignment == .center)
+        #expect(panel.alignmentButtons[.center]?.state == .on)
+    }
+
+    @Test func aTextBoxIsOutlinedWhileDragged() throws {
+        let harness = make()
+        harness.session.toggleTool(.text)
+        harness.session.mouseDown(on: 1, at: CGPoint(x: 200, y: 150))
+        harness.session.mouseDragged(on: 1, to: CGPoint(x: 400, y: 180))
+        harness.view.toolbar?.isHidden = true
+        harness.view.stylePanel?.isHidden = true
+
+        let rep = try #require(harness.view.bitmapImageRepForCachingDisplay(in: harness.view.bounds))
+        harness.view.cacheDisplay(in: harness.view.bounds, to: rep)
+        let image = try #require(rep.cgImage)
+        let scale = image.width / 1000
+        let edge = TestImages.pixel(image, x: 300 * scale, y: 150 * scale)
+        let inside = TestImages.pixel(image, x: 300 * scale, y: 165 * scale)
+        #expect(edge != inside)
+    }
+
+    @Test func aDraggedBoxOpensAWrappingField() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, placement in view.beginTextEntry(at: placement) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 400, y: 160))
+
+        let field = try #require(harness.view.textField)
+        #expect(harness.view.textEntry?.isBox == true)
+        field.stringValue = "Boxed"
+        harness.view.commitTextEntry()
+
+        #expect(harness.session.document.annotations.first?.kind == .text("Boxed", origin: CGPoint(x: 200, y: 150), boxWidth: 200))
+    }
+
+    /// Regression: after placing text the Text button stayed lit, because the toolbar redrew
+    /// before the tool turned off.
+    @Test func placingTextTurnsTheTextButtonOff() throws {
+        let harness = make()
+        harness.session.toggleTool(.text)
+        harness.view.beginTextEntry(at: .line(at: CGPoint(x: 200, y: 150)))
+        try #require(harness.view.textField).stringValue = "Done"
+
+        harness.view.commitTextEntry()
+
+        #expect(harness.view.toolbar?.toolButtons[.text]?.state == .off)
+    }
+
     // MARK: Text entry
 
     @Test func textEntryUsesTheChosenFontAndSize() throws {
@@ -214,7 +283,7 @@ struct SelectionOverlayViewStyleTests {
         harness.session.setFont(.monospaced)
         harness.session.setFontSize(40)
 
-        harness.view.beginTextEntry(at: CGPoint(x: 150, y: 150))
+        harness.view.beginTextEntry(at: .line(at: CGPoint(x: 150, y: 150)))
 
         #expect(try #require(harness.view.textField?.font) == TextFont.monospaced.font(size: 40))
     }

@@ -14,7 +14,9 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 ### Changed
 
-- **Style panel**: line width, font and text size moved out of the toolbar into a small panel next to it, with dropdowns. Shapes get 1 to 16 px line widths; text gets every font (searchable) and sizes from 10 to 96 px. It shows for the tool you picked or the annotation you selected, beside the toolbar, or under it when the selection is narrow
+- **Style panel**: colors, line width, font, text size and alignment moved out of the toolbar into a small panel next to it, with dropdowns. Shapes get 1 to 16 px line widths; text gets every font (searchable), sizes from 10 to 96 px, and left, center or right alignment. It shows for the tool you picked or the annotation you selected, beside the toolbar, or under it when the selection is narrow
+- **Text boxes**: with the Text tool, drag to make a box; the text wraps inside it and Return starts a new line. A click still places a single line. Drag a box's side to change its width
+- The toolbar is one row: Read Text sits next to Save, and Save is a quieter outlined button, so Copy stands out
 - After you draw a shape or place text, the tool turns off and the new annotation stays selected, so you can resize, move or restyle it right away
 
 ## [1.1.0] - 2026-10-30

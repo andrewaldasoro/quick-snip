@@ -61,7 +61,7 @@ struct CaptureSessionAnnotationTests {
     @Test func placingTextTurnsTheToolOffAndSelectsIt() {
         let session = makeSession()
         session.toggleTool(.text)
-        session.addText("Hi", at: CGPoint(x: 50, y: 60), on: 1)
+        session.addText("Hi", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
 
         #expect(session.tool == nil)
         #expect(session.selectedAnnotation?.kind == .text("Hi", origin: CGPoint(x: 50, y: 60)))
@@ -116,25 +116,89 @@ struct CaptureSessionAnnotationTests {
 
     // MARK: Text
 
-    @Test func textToolRequestsEntryInsideSelection() {
+    @Test func textToolClickRequestsOneLineInsideSelection() {
         let session = makeSession()
-        var requests: [(CGDirectDisplayID, CGPoint)] = []
+        var requests: [(CGDirectDisplayID, TextPlacement)] = []
         session.onRequestTextEntry = { requests.append(($0, $1)) }
         session.toggleTool(.text)
 
-        session.mouseDown(on: 1, at: CGPoint(x: 50, y: 60))
-        session.mouseDown(on: 1, at: CGPoint(x: 190, y: 140))  // outside
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 50, y: 60), to: CGPoint(x: 52, y: 61))
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 190, y: 140), to: CGPoint(x: 190, y: 140))  // outside
 
         #expect(requests.count == 1)
         #expect(requests.first?.0 == 1)
-        #expect(requests.first?.1 == CGPoint(x: 50, y: 60))
+        #expect(requests.first?.1 == .line(at: CGPoint(x: 50, y: 60)))
+    }
+
+    @Test func textToolDragRequestsABoxClampedToTheSelection() {
+        let session = makeSession()
+        var requests: [TextPlacement] = []
+        session.onRequestTextEntry = { requests.append($1) }
+        session.toggleTool(.text)
+
+        session.mouseDown(on: 1, at: CGPoint(x: 100, y: 60))
+        session.mouseDragged(on: 1, to: CGPoint(x: 40, y: 80))
+        #expect(session.textBoxPreview == CGRect(x: 40, y: 60, width: 60, height: 20))
+        session.mouseUp(on: 1, at: CGPoint(x: 500, y: 80))  // past the selection's right edge
+
+        #expect(requests == [TextPlacement(origin: CGPoint(x: 100, y: 60), boxWidth: 40)])
+        #expect(session.textBoxPreview == nil)
+    }
+
+    @Test func aShortTextDragHasNoBoxPreview() {
+        let session = makeSession()
+        session.toggleTool(.text)
+        session.mouseDown(on: 1, at: CGPoint(x: 50, y: 60))
+        session.mouseDragged(on: 1, to: CGPoint(x: 60, y: 70))
+        #expect(session.textBoxPreview == nil)
+    }
+
+    @Test func boxedTextKeepsItsWidth() {
+        let session = makeSession()
+        session.addText("Hello", at: TextPlacement(origin: CGPoint(x: 30, y: 40), boxWidth: 80), on: 1)
+        #expect(session.document.annotations.first?.kind == .text("Hello", origin: CGPoint(x: 30, y: 40), boxWidth: 80))
+    }
+
+    @Test func alignmentAppliesToNewAndSelectedTextAsOneUndoStep() {
+        let session = makeSession()
+        session.addText("Hello", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
+        let before = session.document.annotations.first?.bounds
+
+        session.setAlignment(.right)
+
+        #expect(session.style.alignment == .right)
+        #expect(session.document.annotations.first?.style.alignment == .right)
+        #expect(session.document.annotations.first?.bounds == before)  // stays where it was
+        #expect(session.styleOptions == .text(font: .system, size: TextSize.default, alignment: .right))
+        session.undo()
+        #expect(session.document.annotations.first?.style.alignment == .left)
+    }
+
+    @Test func alignmentLeavesSelectedShapesAlone() {
+        let session = makeSession()
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        session.setAlignment(.center)
+        #expect(session.document.annotations.first?.style.alignment == .left)
+        #expect(session.document.undoManager.undoActionName == "Add Rectangle")
+    }
+
+    @Test func styleColorIsTheSelectedAnnotationsOwn() {
+        let session = makeSession()
+        session.setColor(.blue)
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+        selectFirstAnnotation(session, at: CGPoint(x: 100, y: 100))  // deselect
+        session.setColor(.green)  // only for what's drawn next
+        #expect(session.styleColor == .green)
+
+        selectFirstAnnotation(session, at: CGPoint(x: 47, y: 40))
+        #expect(session.styleColor == .blue)
     }
 
     @Test func addTextTrimsAndIgnoresEmpty() {
         let session = makeSession()
-        session.addText("  hello \n", at: CGPoint(x: 50, y: 60), on: 1)
-        session.addText("   ", at: CGPoint(x: 50, y: 60), on: 1)
-        session.addText("other display", at: .zero, on: 2)
+        session.addText("  hello \n", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
+        session.addText("   ", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
+        session.addText("other display", at: .line(at: .zero), on: 2)
         #expect(session.document.annotations.map(\.kind) == [.text("hello", origin: CGPoint(x: 50, y: 60))])
     }
 
@@ -142,14 +206,14 @@ struct CaptureSessionAnnotationTests {
 
     /// Placed text is selected right away.
     private func addAndSelectText(_ session: CaptureSession) {
-        session.addText("Hello", at: CGPoint(x: 50, y: 60), on: 1)
+        session.addText("Hello", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
     }
 
     @Test func newTextUsesTheChosenFontAndSize() {
         let session = makeSession()
         session.setFont(.serif)
         session.setFontSize(40)
-        session.addText("Hi", at: CGPoint(x: 50, y: 60), on: 1)
+        session.addText("Hi", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
 
         #expect(session.document.annotations.first?.style.font == .serif)
         #expect(session.document.annotations.first?.style.fontSize == 40)
@@ -165,7 +229,7 @@ struct CaptureSessionAnnotationTests {
         let session = CaptureSession(displays: [builtIn], style: AnnotationStyle(font: .rounded, fontSize: 30))
         #expect(session.style.font == .rounded)
         session.toggleTool(.text)
-        #expect(session.styleOptions == .text(font: .rounded, size: 30))
+        #expect(session.styleOptions == .text(font: .rounded, size: 30, alignment: .left))
     }
 
     @Test func fontAndSizeApplyToTheSelectedTextAsOneUndoStepEach() {
@@ -200,7 +264,7 @@ struct CaptureSessionAnnotationTests {
         session.toggleTool(.arrow)
         #expect(session.styleOptions == .stroke(lineWidth: LineWidth.default))
         session.toggleTool(.text)
-        #expect(session.styleOptions == .text(font: .system, size: TextSize.default))
+        #expect(session.styleOptions == .text(font: .system, size: TextSize.default, alignment: .left))
         session.toggleTool(.pixelate)
         #expect(session.styleOptions == nil)
     }
@@ -227,13 +291,13 @@ struct CaptureSessionAnnotationTests {
 
     @Test func textSizeShownIsTheSelectedTextsOwn() {
         let session = makeSession()
-        session.addText("Hello", at: CGPoint(x: 50, y: 60), on: 1)
-        session.addText("World", at: CGPoint(x: 50, y: 100), on: 1)
+        session.addText("Hello", at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
+        session.addText("World", at: .line(at: CGPoint(x: 50, y: 100)), on: 1)
         session.setFontSize(70)  // the just-added "World" is selected
 
         selectFirstAnnotation(session, at: CGPoint(x: 52, y: 62))
 
-        #expect(session.styleOptions == .text(font: .system, size: TextSize.default))
+        #expect(session.styleOptions == .text(font: .system, size: TextSize.default, alignment: .left))
     }
 
     @Test func textStyleChangesAreReported() {

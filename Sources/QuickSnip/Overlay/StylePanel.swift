@@ -1,20 +1,32 @@
 import AppKit
 
 /// The style of what's being drawn or is selected, in its own small glass panel next to the
-/// toolbar: a Width dropdown for shapes, lines and strokes; Font and Size dropdowns for text.
+/// toolbar, on one row: colors | a Width dropdown for shapes, lines and strokes; or Font and Size
+/// dropdowns and the alignment buttons for text.
 final class StylePanel: NSView {
-    static let spacing: CGFloat = 4
-    static let insets = NSEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
+    struct Actions {
+        var openList: @MainActor (StyleList) -> Void
+        var selectColor: @MainActor (AnnotationColor) -> Void
+        var selectAlignment: @MainActor (TextAlignment) -> Void
+    }
+
+    static let spacing: CGFloat = 2
+    static let groupSpacing: CGFloat = 6
+    static let insets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
     /// The font dropdown shows its title in the font itself, at this size.
     static let fontTitleSize: CGFloat = 13
 
-    private let onOpenList: @MainActor (StyleList, NSView) -> Void
+    private let actions: Actions
     private(set) var options: StyleOptions?
+    private(set) var colorButtons: [AnnotationColor: NSButton] = [:]
     private(set) var buttons: [StyleList: DropdownButton] = [:]
+    private(set) var alignmentButtons: [TextAlignment: NSButton] = [:]
     private let row = NSStackView()
+    /// Everything after the colors; rebuilt when switching between shapes and text.
+    private var styleViews: [NSView] = []
 
-    init(onOpenList: @escaping @MainActor (StyleList, NSView) -> Void) {
-        self.onOpenList = onOpenList
+    init(actions: Actions) {
+        self.actions = actions
         super.init(frame: .zero)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
@@ -24,6 +36,14 @@ final class StylePanel: NSView {
         row.alignment = .centerY
         row.spacing = Self.spacing
         row.translatesAutoresizingMaskIntoConstraints = false
+        for color in AnnotationColor.allCases {
+            let button = ColorSwatchButton(color: color, label: AnnotationToolbar.label(for: color))
+            button.target = self
+            button.action = #selector(colorClicked(_:))
+            colorButtons[color] = button
+            row.addArrangedSubview(button)
+        }
+
         let content = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(row)
@@ -51,17 +71,23 @@ final class StylePanel: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    /// Shows the dropdowns for `options`, marking `openList`'s as open.
-    func update(options: StyleOptions, openList: StyleList?) {
+    /// Shows `color` and the controls for `options`, marking `openList`'s dropdown as open.
+    func update(options: StyleOptions, color: AnnotationColor, openList: StyleList?) {
         if !Self.isSameKind(options, self.options) { rebuild(for: options) }
         self.options = options
+        for (candidate, button) in colorButtons {
+            button.state = candidate == color ? .on : .off
+        }
         switch options {
         case .stroke(let width):
             buttons[.lineWidth]?.title = StyleValue.lineWidth(width).title
-        case .text(let font, let size):
+        case .text(let font, let size, let alignment):
             buttons[.font]?.title = font.displayName
             buttons[.font]?.titleFontOverride = font.font(size: Self.fontTitleSize)
             buttons[.fontSize]?.title = StyleValue.fontSize(size).title
+            for (candidate, button) in alignmentButtons {
+                button.state = candidate == alignment ? .on : .off
+            }
         }
         markOpen(openList)
         setFrameSize(fittingSize)
@@ -81,32 +107,60 @@ final class StylePanel: NSView {
     }
 
     private func rebuild(for options: StyleOptions) {
-        for view in row.arrangedSubviews {
+        for view in styleViews {
             row.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
         buttons = [:]
-        let lists: [(StyleList, String)] =
-            switch options {
-            case .stroke: [(.lineWidth, "Line width")]
-            case .text: [(.font, "Font"), (.fontSize, "Text size")]
-            }
-        if case .stroke = options {
+        alignmentButtons = [:]
+        styleViews = [ToolbarDivider()]
+        switch options {
+        case .stroke:
             let icon = NSImageView(image: NSImage(systemSymbolName: "lineweight", accessibilityDescription: nil) ?? NSImage())
             icon.contentTintColor = .secondaryLabelColor
-            row.addArrangedSubview(icon)
+            styleViews += [icon, makeDropdown(.lineWidth, label: "Line width")]
+        case .text:
+            styleViews += [makeDropdown(.font, label: "Font"), makeDropdown(.fontSize, label: "Text size"), ToolbarDivider()]
+            styleViews += TextAlignment.allCases.map(makeAlignmentButton)
         }
-        for (list, label) in lists {
-            let button = DropdownButton(title: "", label: label)
-            button.target = self
-            button.action = #selector(buttonClicked(_:))
-            buttons[list] = button
-            row.addArrangedSubview(button)
+        for view in styleViews {
+            row.addArrangedSubview(view)
+        }
+        // Hairlines get a little room on each side, like the toolbar's groups.
+        for (index, view) in row.arrangedSubviews.enumerated() where view is ToolbarDivider && index > 0 {
+            row.setCustomSpacing(Self.groupSpacing, after: row.arrangedSubviews[index - 1])
+            row.setCustomSpacing(Self.groupSpacing, after: view)
         }
     }
 
-    @objc private func buttonClicked(_ sender: DropdownButton) {
+    private func makeDropdown(_ list: StyleList, label: String) -> DropdownButton {
+        let button = DropdownButton(title: "", label: label)
+        button.target = self
+        button.action = #selector(dropdownClicked(_:))
+        buttons[list] = button
+        return button
+    }
+
+    private func makeAlignmentButton(_ alignment: TextAlignment) -> NSView {
+        let button = ToolbarButton(symbol: alignment.symbol, label: alignment.displayName, toggles: true)
+        button.target = self
+        button.action = #selector(alignmentClicked(_:))
+        alignmentButtons[alignment] = button
+        return button
+    }
+
+    @objc private func colorClicked(_ sender: NSButton) {
+        guard let color = colorButtons.first(where: { $0.value === sender })?.key else { return }
+        actions.selectColor(color)
+    }
+
+    @objc private func dropdownClicked(_ sender: DropdownButton) {
         guard let list = buttons.first(where: { $0.value === sender })?.key else { return }
-        onOpenList(list, sender)
+        actions.openList(list)
+    }
+
+    @objc private func alignmentClicked(_ sender: NSButton) {
+        guard let alignment = alignmentButtons.first(where: { $0.value === sender })?.key else { return }
+        actions.selectAlignment(alignment)
     }
 }
