@@ -383,8 +383,26 @@ final class AnnotationToolbar: NSView {
 // MARK: - Controls
 
 /// Borderless glyph button like a macOS toolbar item: a soft rounded highlight on hover
-/// and press, and an accent tint while toggled on.
+/// and press, and a solid accent fill with a white glyph while toggled on.
 final class ToolbarButton: NSButton {
+    /// An accent glyph on a faint accent wash was hard to read over the glass, so "on" and the
+    /// primary action use a solid accent fill with a white or black foreground, whichever
+    /// contrasts more with the user's accent color.
+    /// How much darker the accent fill gets on hover and press.
+    static let hoverDarkening: CGFloat = 0.12
+    static let pressDarkening: CGFloat = 0.25
+
+    /// The solid accent fill, darkened while hovered or pressed.
+    static func accentFill(isHighlighted: Bool, isHovered: Bool) -> NSColor {
+        let accent = NSColor.controlAccentColor
+        let darkening = isHighlighted ? pressDarkening : isHovered ? hoverDarkening : 0
+        return accent.blended(withFraction: darkening, of: .black) ?? accent
+    }
+
+    static var accentForeground: NSColor {
+        ColorContrast.readableForeground(on: accentFill(isHighlighted: false, isHovered: false))
+    }
+
     private var isHovered = false { didSet { needsDisplay = true } }
 
     convenience init(symbol: String, label: String, toggles: Bool) {
@@ -462,20 +480,20 @@ final class ToolbarButton: NSButton {
 
     private var backgroundColor: NSColor? {
         guard isEnabled else { return nil }
-        if state == .on { return .controlAccentColor.withAlphaComponent(isHighlighted ? 0.32 : 0.2) }
+        if state == .on { return Self.accentFill(isHighlighted: isHighlighted, isHovered: isHovered) }
         if isHighlighted { return .labelColor.withAlphaComponent(0.14) }
         if isHovered { return .labelColor.withAlphaComponent(0.08) }
         return nil
     }
 
     private func refreshTint() {
-        contentTintColor = state == .on && isEnabled ? .controlAccentColor : nil
+        contentTintColor = state == .on && isEnabled ? Self.accentForeground : nil
         needsDisplay = true
     }
 }
 
-/// The primary action: icon plus title, tinted with the accent color like a toggled-on
-/// tool, so it stands out without clashing. Same height and corner radius as
+/// The primary action: white icon plus title on a solid accent fill, like a toggled-on
+/// tool, so it stands out and stays readable. Same height and corner radius as
 /// `ToolbarButton`, so it lines up with the glyphs (a push bezel doesn't).
 final class PrimaryToolbarButton: NSButton {
     static let horizontalPadding: CGFloat = 9
@@ -536,8 +554,8 @@ final class PrimaryToolbarButton: NSButton {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let accent = NSColor.controlAccentColor
-        accent.withAlphaComponent(isHighlighted ? 0.34 : isHovered ? 0.26 : 0.2).setFill()
+        let foreground = ToolbarButton.accentForeground
+        ToolbarButton.accentFill(isHighlighted: isHighlighted, isHovered: isHovered).setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
 
         let iconRect = NSRect(
@@ -546,9 +564,9 @@ final class PrimaryToolbarButton: NSButton {
             width: icon.size.width,
             height: icon.size.height
         )
-        Self.tinted(icon, accent).draw(in: iconRect)
+        Self.tinted(icon, foreground).draw(in: iconRect)
 
-        let text = NSAttributedString(string: title, attributes: [.font: titleFont, .foregroundColor: accent])
+        let text = NSAttributedString(string: title, attributes: [.font: titleFont, .foregroundColor: foreground])
         text.draw(at: NSPoint(x: iconRect.maxX + Self.iconSpacing, y: (bounds.height - titleSize.height) / 2))
     }
 
