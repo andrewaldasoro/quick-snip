@@ -184,6 +184,7 @@ final class FakeHotkeySource {
 @MainActor
 final class FakeUpdater: UpdateChecking {
     var automaticallyChecksForUpdates: Bool
+    var onCheckFinished: (@MainActor (_ update: (version: String, notesHTML: String?)?) -> Void)?
     private(set) var checkCount = 0
 
     init(automaticallyChecksForUpdates: Bool = false) {
@@ -252,4 +253,10 @@ final class GatedWindowCapturer: WindowImageCapturing {
 
 struct FakeFontFamilies: FontFamilyProviding {
     var availableFamilies: [String]
+}
+
+struct FakeChangelog: ChangelogLoading {
+    var markdown: String?
+
+    func loadMarkdown() -> String? { markdown }
 }

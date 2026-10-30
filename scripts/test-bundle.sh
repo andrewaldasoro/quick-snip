@@ -28,6 +28,7 @@ check "no runtime-weakening entitlements" "! grep -qE '$RISKY_ENTITLEMENTS' <<<\
 check "no App Transport Security exceptions" "! /usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity' '$APP/Contents/Info.plist' >/dev/null 2>&1"
 check "KeyboardShortcuts resources bundled" "[ -d '$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle' ]"
 check "app icon bundled" "[ -f '$APP/Contents/Resources/AppIcon.icns' ]"
+check "release notes bundled" "[ -s '$APP/Contents/Resources/CHANGELOG.md' ]"
 check "executable is arm64" "lipo -archs '$APP/Contents/MacOS/QuickSnip' | grep -qx arm64"
 check "Sparkle embedded and signed" "codesign --verify --strict '$APP/Contents/Frameworks/Sparkle.framework' 2>/dev/null"
 check "Sparkle signed like the app (library validation)" \

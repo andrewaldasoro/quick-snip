@@ -8,6 +8,8 @@ struct KeyCapsView: View {
     static let cornerRadius: CGFloat = 5
 
     let keys: [String]
+    /// Keys pressed together (⇧ ⌘ C) rather than alternatives (Delete or ⌦).
+    var isCombination = false
 
     var body: some View {
         HStack(spacing: Self.spacing) {
@@ -21,6 +23,6 @@ struct KeyCapsView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(keys.joined(separator: " or "))
+        .accessibilityLabel(keys.joined(separator: isCombination ? " " : " or "))
     }
 }

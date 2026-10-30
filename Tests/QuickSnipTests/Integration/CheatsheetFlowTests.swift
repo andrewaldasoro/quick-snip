@@ -31,9 +31,7 @@ struct CheatsheetFlowTests {
         let cheatsheetWindow = try openedWindow { cheatsheet.show() }
         defer { cheatsheetWindow.close() }
 
-        let settingsTabs = try #require(settingsWindow.contentViewController as? NSTabViewController)
-        let fromSettings = try #require(
-            settingsTabs.tabViewItems.compactMap { $0.viewController as? NSHostingController<CheatsheetView> }.first)
+        let fromSettings = try #require(settingsWindow.contentViewController as? NSHostingController<SettingsRootView>)
         let fromMenu = try #require(cheatsheetWindow.contentViewController as? NSHostingController<CheatsheetView>)
         #expect(fromSettings.rootView.hotkey.cheatsheet == fromMenu.rootView.hotkey.cheatsheet)
         #expect(fromMenu.rootView.hotkey.cheatsheet == ShortcutCheatsheet(captureShortcut: "⌃⌥S"))

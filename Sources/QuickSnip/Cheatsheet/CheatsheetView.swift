@@ -7,26 +7,9 @@ struct CheatsheetView: View {
     let hotkey: CaptureHotkey
 
     var body: some View {
-        Form {
-            ForEach(hotkey.cheatsheet.sections) { section in
-                Section {
-                    ForEach(section.entries, id: \.self) { entry in
-                        LabeledContent(entry.action) {
-                            KeyCapsView(keys: entry.keys)
-                        }
-                    }
-                } header: {
-                    Text(section.title)
-                } footer: {
-                    if let note = section.note {
-                        Text(note)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+        SettingsPageLayout(title: SettingsPage.shortcuts.title) {
+            CheatsheetSections(hotkey: hotkey)
         }
-        .formStyle(.grouped)
         .frame(width: Self.size.width, height: Self.size.height)
     }
 }

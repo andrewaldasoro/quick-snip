@@ -62,7 +62,7 @@ struct AppSettingsTests {
 
     @Test func displayPathAbbreviatesHome() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        #expect(SettingsView.displayPath(home.appendingPathComponent("Desktop")) == "~/Desktop")
+        #expect(GeneralSettingsPage.displayPath(home.appendingPathComponent("Desktop")) == "~/Desktop")
     }
 }
 
