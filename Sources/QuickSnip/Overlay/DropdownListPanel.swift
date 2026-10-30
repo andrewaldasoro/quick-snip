@@ -10,7 +10,10 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
     static let padding: CGFloat = 6
     static let searchHeight: CGFloat = 28
     static let maximumVisibleRows = 10
-    static let width: CGFloat = 150
+    /// The narrowest list; a list of short values (sizes) still reads as a menu.
+    static let minimumWidth: CGFloat = 90
+    /// Space between a row's highlight edge and its content, on both sides.
+    static let rowPadding: CGFloat = 8
     static let searchableWidth: CGFloat = 240
     static let linePreviewWidth: CGFloat = 40
 
@@ -33,7 +36,7 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         self.onPick = onPick
         self.onClose = onClose
         searchField = isSearchable ? NSSearchField() : nil
-        preferredSize = Self.size(rows: values.count, isSearchable: isSearchable)
+        preferredSize = Self.size(for: values, isSearchable: isSearchable)
         super.init(frame: CGRect(origin: .zero, size: preferredSize))
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -49,11 +52,16 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         fatalError("init(coder:) is not supported")
     }
 
-    /// Tall enough for every row up to `maximumVisibleRows`; longer lists scroll.
-    static func size(rows: Int, isSearchable: Bool) -> CGSize {
-        let visible = CGFloat(min(max(rows, 1), maximumVisibleRows))
+    /// Tall enough for every row up to `maximumVisibleRows` (longer lists scroll), and as wide
+    /// as its widest row. The searchable font list keeps a fixed width, so typing doesn't
+    /// resize it.
+    static func size(for values: [StyleValue], isSearchable: Bool) -> CGSize {
+        let visible = CGFloat(min(max(values.count, 1), maximumVisibleRows))
         let search = isSearchable ? searchHeight + padding : 0
-        return CGSize(width: isSearchable ? searchableWidth : width, height: visible * rowHeight + search + padding * 2)
+        let height = visible * rowHeight + search + padding * 2
+        guard !isSearchable else { return CGSize(width: searchableWidth, height: height) }
+        let widest = values.map { rowContent(for: $0).fittingSize.width }.max() ?? 0
+        return CGSize(width: max(minimumWidth, ceil(widest) + rowPadding * 2 + padding * 2), height: height)
     }
 
     /// The field to focus when the list opens: the search field, or the list itself.
@@ -201,13 +209,27 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        Self.rowView(for: values[row])
+        Self.paddedRow(for: values[row])
     }
 
     static let swatchDiameter: CGFloat = 14
 
     /// Fonts in their own typeface; colors and line widths with a swatch or a line that thick in front.
-    static func rowView(for value: StyleValue) -> NSView {
+    /// The row's content, inset from the highlight's edges.
+    static func paddedRow(for value: StyleValue) -> NSView {
+        let content = rowContent(for: value)
+        content.translatesAutoresizingMaskIntoConstraints = false
+        let row = NSView()
+        row.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: rowPadding),
+            content.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -rowPadding),
+            content.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+        ])
+        return row
+    }
+
+    static func rowContent(for value: StyleValue) -> NSView {
         let label = NSTextField(labelWithString: value.title)
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityLabel(value.title)

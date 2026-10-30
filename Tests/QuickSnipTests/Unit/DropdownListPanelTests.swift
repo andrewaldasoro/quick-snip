@@ -34,11 +34,12 @@ struct DropdownListPanelTests {
     }
 
     @Test func heightFollowsTheRowsUpToAMaximum() {
-        let short = DropdownListPanel.size(rows: 3, isSearchable: false)
-        let long = DropdownListPanel.size(rows: 200, isSearchable: false)
+        let sizes = { (count: Int) in Array(repeating: StyleValue.fontSize(12), count: count) }
+        let short = DropdownListPanel.size(for: sizes(3), isSearchable: false)
+        let long = DropdownListPanel.size(for: sizes(200), isSearchable: false)
         #expect(short.height < long.height)
-        #expect(long == DropdownListPanel.size(rows: DropdownListPanel.maximumVisibleRows, isSearchable: false))
-        #expect(DropdownListPanel.size(rows: 3, isSearchable: true).width == DropdownListPanel.searchableWidth)
+        #expect(long == DropdownListPanel.size(for: sizes(DropdownListPanel.maximumVisibleRows), isSearchable: false))
+        #expect(DropdownListPanel.size(for: sizes(3), isSearchable: true).width == DropdownListPanel.searchableWidth)
     }
 
     @Test func searchFiltersByTitleAndSelectsTheFirstMatch() throws {
@@ -88,31 +89,32 @@ struct DropdownListPanelTests {
     }
 
     @Test func fontsShowInTheirOwnTypeface() throws {
-        let row = try #require(DropdownListPanel.rowView(for: .font(.family("Helvetica"))) as? NSTextField)
+        let row = try #require(DropdownListPanel.rowContent(for: .font(.family("Helvetica"))) as? NSTextField)
         #expect(row.stringValue == "Helvetica")
         #expect(row.font?.familyName == "Helvetica")
     }
 
     @Test func widthsShowALineThatThick() throws {
-        let row = try #require(DropdownListPanel.rowView(for: .lineWidth(8)) as? NSStackView)
+        let row = try #require(DropdownListPanel.rowContent(for: .lineWidth(8)) as? NSStackView)
         #expect(row.arrangedSubviews.first is NSImageView)
         #expect((row.arrangedSubviews.last as? NSTextField)?.stringValue == "8 px")
         #expect(DropdownListPanel.linePreview(width: 8).accessibilityDescription == "8 px")
     }
 
     @Test func sizesShowTheirNumber() throws {
-        let row = try #require(DropdownListPanel.rowView(for: .fontSize(36)) as? NSTextField)
+        let row = try #require(DropdownListPanel.rowContent(for: .fontSize(36)) as? NSTextField)
         #expect(row.stringValue == "36 px")
     }
 
     @Test func rowsComeFromTheValues() {
         let (panel, _) = make(values: [.fontSize(12), .fontSize(14)], isSearchable: false)
         #expect(panel.numberOfRows(in: panel.table) == 2)
-        #expect((panel.tableView(panel.table, viewFor: nil, row: 1) as? NSTextField)?.stringValue == "14 px")
+        let row = panel.tableView(panel.table, viewFor: nil, row: 1)
+        #expect((row?.subviews.first as? NSTextField)?.stringValue == "14 px")
     }
 
     @Test func colorsShowASwatchAndTheirName() throws {
-        let row = try #require(DropdownListPanel.rowView(for: .color(.blue)) as? NSStackView)
+        let row = try #require(DropdownListPanel.rowContent(for: .color(.blue)) as? NSStackView)
         #expect((row.arrangedSubviews.first as? NSImageView)?.image?.accessibilityDescription == "Blue")
         #expect((row.arrangedSubviews.last as? NSTextField)?.stringValue == "Blue")
     }
@@ -139,6 +141,36 @@ struct DropdownListPanelTests {
     @Test func rowsUseTheRoundedRowView() {
         let (panel, _) = make()
         #expect(panel.tableView(panel.table, rowViewForRow: 0) is DropdownRowView)
+    }
+}
+
+@MainActor
+struct DropdownListSizingTests {
+    /// Regression: rows sat flush against the highlight's left edge.
+    @Test func rowContentIsInsetFromBothEdges() throws {
+        let row = DropdownListPanel.paddedRow(for: .fontSize(22))
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 120, height: DropdownListPanel.rowHeight), styleMask: .borderless, backing: .buffered,
+            defer: true)
+        window.contentView = row
+        row.layoutSubtreeIfNeeded()
+        let content = try #require(row.subviews.first)
+        // Auto Layout pins the alignment rect: where the text starts, not the label's frame.
+        let placed = content.alignmentRect(forFrame: content.frame)
+        #expect(placed.minX == DropdownListPanel.rowPadding)
+        #expect(placed.maxX <= 120 - DropdownListPanel.rowPadding)
+    }
+
+    /// Regression: a fixed 150 pt list left lots of empty space after short values.
+    @Test func listsAreAsWideAsTheirWidestRow() {
+        let sizes = DropdownListPanel.size(for: TextSize.presets.map(StyleValue.fontSize), isSearchable: false)
+        let colors = DropdownListPanel.size(for: AnnotationColor.allCases.map(StyleValue.color), isSearchable: false)
+        let widest = DropdownListPanel.rowContent(for: .fontSize(96)).fittingSize.width
+        #expect(
+            sizes.width
+                == max(DropdownListPanel.minimumWidth, ceil(widest) + (DropdownListPanel.rowPadding + DropdownListPanel.padding) * 2))
+        #expect(sizes.width < 150)
+        #expect(colors.width > sizes.width)  // swatch plus "Orange"
     }
 }
 
