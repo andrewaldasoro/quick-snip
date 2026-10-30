@@ -1,10 +1,12 @@
 name: Release
 
-# Push a tag like v1.2.3 to publish a GitHub Release with the zip, DMG, checksums and
-# build-provenance attestations (our free stand-in for notarization), then the Sparkle
-# appcast and landing page on GitHub Pages.
+# Every merge to main whose CHANGELOG.md has a new `## [x.y.z]` section publishes that version:
+# a vx.y.z tag and GitHub Release with the zip, DMG, checksums and build-provenance
+# attestations (our free stand-in for notarization), then the Sparkle appcast and landing page
+# on GitHub Pages. Merges without one release nothing. Pushing a v* tag by hand also releases.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
 
 permissions:
@@ -15,8 +17,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version:
+    name: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: next
+        # Empty when the newest changelog version is already tagged: nothing to release.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(./scripts/next-release.sh)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Release: ${version:-none}" >> "$GITHUB_STEP_SUMMARY"
+
   release:
     name: release
+    needs: version
+    if: needs.version.outputs.version != ''
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
@@ -25,14 +51,12 @@ jobs:
       attestations: write
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+      # package.sh rejects anything that isn't x.y.z.
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Version from tag
-        # package.sh rejects anything that isn't x.y.z.
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Release notes
         # Fails fast when CHANGELOG.md has no section for this version.
@@ -63,13 +87,15 @@ jobs:
             dist/QuickSnip.dmg
             dist/QuickSnip.sbom.cdx.json
 
+      # Creates the tag on the merged commit (or uses the one pushed by hand). A tag made with
+      # this workflow's token doesn't start another run, so nothing releases twice.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "v$VERSION" \
             dist/QuickSnip.dmg dist/QuickSnip.zip dist/QuickSnip.sbom.cdx.json dist/SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" --verify-tag --notes-file "$RUNNER_TEMP/notes.md" --title "QuickSnip $VERSION"
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes-file "$RUNNER_TEMP/notes.md" --title "QuickSnip $VERSION"
 
   # After the release, so the appcast never points at assets that don't exist yet.
   pages:
