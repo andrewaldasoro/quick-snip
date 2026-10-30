@@ -17,8 +17,15 @@ final class OutlineToolbarButton: NSButton {
         title = ""
         image = icon
         imagePosition = .imageOnly
+        imageScaling = .scaleNone
         isBordered = false
         setButtonType(.momentaryChange)
+        contentTintColor = .labelColor
+        if let cell = cell as? NSButtonCell {
+            // Hover and press are drawn by `draw(_:)`.
+            cell.highlightsBy = []
+            cell.showsStateBy = []
+        }
         toolTip = label
         setAccessibilityLabel(label)
         translatesAutoresizingMaskIntoConstraints = false
@@ -65,18 +72,8 @@ final class OutlineToolbarButton: NSButton {
         shape.lineWidth = Self.borderWidth
         shape.stroke()
 
-        let iconRect = NSRect(
-            x: (bounds.width - icon.size.width) / 2, y: (bounds.height - icon.size.height) / 2, width: icon.size.width,
-            height: icon.size.height)
-        Self.tinted(icon, .labelColor).draw(in: iconRect)
-    }
-
-    private static func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
-        NSImage(size: image.size, flipped: false) { rect in
-            image.draw(in: rect)
-            color.setFill()
-            rect.fill(using: .sourceAtop)
-            return true
-        }
+        // The button centers the symbol by its alignment rect, as it does for the glyph buttons;
+        // centering the image's raw bounds sat it off-center.
+        super.draw(dirtyRect)
     }
 }

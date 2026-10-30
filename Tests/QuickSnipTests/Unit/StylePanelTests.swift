@@ -7,7 +7,6 @@ import Testing
 struct StylePanelTests {
     private final class Recorder {
         var opened: [StyleList] = []
-        var colors: [AnnotationColor] = []
         var alignments: [TextAlignment] = []
     }
 
@@ -18,24 +17,24 @@ struct StylePanelTests {
         let panel = StylePanel(
             actions: .init(
                 openList: { recorder.opened.append($0) },
-                selectColor: { recorder.colors.append($0) },
                 selectAlignment: { recorder.alignments.append($0) }
             ))
         return (panel, recorder)
     }
 
-    @Test func alwaysOffersEveryColorAndMarksTheCurrentOne() {
+    @Test func alwaysHasAColorDropdownShowingTheCurrentColor() {
         let (panel, _) = make()
         panel.update(options: .stroke(lineWidth: 4), color: .blue, openList: nil)
-        #expect(Set(panel.colorButtons.keys) == Set(AnnotationColor.allCases))
-        #expect(panel.colorButtons[.blue]?.state == .on)
-        #expect(panel.colorButtons.filter { $0.value.state == .on }.count == 1)
+        #expect(panel.buttons[.color]?.leadingImage?.accessibilityDescription == "Blue")
+        #expect(panel.buttons[.color]?.accessibilityValue() as? String == "Blue")
+        panel.update(options: text, color: .green, openList: nil)
+        #expect(panel.buttons[.color]?.leadingImage?.accessibilityDescription == "Green")
     }
 
     @Test func shapesGetAWidthDropdown() {
         let (panel, _) = make()
         panel.update(options: .stroke(lineWidth: 6), color: .red, openList: nil)
-        #expect(Set(panel.buttons.keys) == [.lineWidth])
+        #expect(Set(panel.buttons.keys) == [.color, .lineWidth])
         #expect(panel.buttons[.lineWidth]?.title == "6 px")
         #expect(panel.alignmentButtons.isEmpty)
     }
@@ -43,7 +42,7 @@ struct StylePanelTests {
     @Test func textGetsFontSizeAndAlignment() {
         let (panel, _) = make()
         panel.update(options: text, color: .red, openList: nil)
-        #expect(Set(panel.buttons.keys) == [.font, .fontSize])
+        #expect(Set(panel.buttons.keys) == [.color, .font, .fontSize])
         #expect(panel.buttons[.font]?.title == "Serif")
         #expect(panel.buttons[.font]?.titleFontOverride == TextFont.serif.font(size: StylePanel.fontTitleSize))
         #expect(panel.buttons[.fontSize]?.title == "36 px")
@@ -85,11 +84,10 @@ struct StylePanelTests {
         panel.update(options: text, color: .red, openList: nil)
         panel.buttons[.fontSize]?.performClick(nil)
         panel.buttons[.font]?.performClick(nil)
-        panel.colorButtons[.green]?.performClick(nil)
+        panel.buttons[.color]?.performClick(nil)
         panel.alignmentButtons[.right]?.performClick(nil)
 
-        #expect(recorder.opened == [.fontSize, .font])
-        #expect(recorder.colors == [.green])
+        #expect(recorder.opened == [.fontSize, .font, .color])
         #expect(recorder.alignments == [.right])
     }
 }

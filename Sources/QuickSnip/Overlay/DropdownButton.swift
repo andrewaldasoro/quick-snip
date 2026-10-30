@@ -17,6 +17,13 @@ final class DropdownButton: NSButton {
     var titleFontOverride: NSFont? {
         didSet { invalidateIntrinsicContentSize() }
     }
+    /// Shown before the title (the color menu shows the current color's swatch).
+    var leadingImage: NSImage? {
+        didSet {
+            invalidateIntrinsicContentSize()
+            needsDisplay = true
+        }
+    }
 
     init(title: String, label: String) {
         let config = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
@@ -52,8 +59,15 @@ final class DropdownButton: NSButton {
         (title as NSString).size(withAttributes: [.font: drawnFont])
     }
 
+    /// The swatch, then the title, each followed by the gap before the next item.
+    private var leadingWidth: CGFloat {
+        let image = leadingImage.map { $0.size.width + Self.chevronSpacing } ?? 0
+        let text = title.isEmpty ? 0 : ceil(titleSize.width) + Self.chevronSpacing
+        return image + text
+    }
+
     override var intrinsicContentSize: NSSize {
-        let width = ceil(titleSize.width) + Self.chevronSpacing + chevron.size.width + Self.horizontalPadding * 2
+        let width = leadingWidth + chevron.size.width + Self.horizontalPadding * 2
         return NSSize(width: ceil(width), height: AnnotationToolbar.buttonSize.height)
     }
 
@@ -71,13 +85,21 @@ final class DropdownButton: NSButton {
         NSColor.labelColor.withAlphaComponent(alpha).setFill()
         NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
 
-        let size = titleSize
-        let text = NSAttributedString(string: title, attributes: [.font: drawnFont, .foregroundColor: NSColor.labelColor])
-        text.draw(at: NSPoint(x: Self.horizontalPadding, y: (bounds.height - size.height) / 2))
+        // Whole-point positions: half-point offsets blur text and glyphs.
+        var x = Self.horizontalPadding
+        if let leadingImage {
+            leadingImage.draw(
+                in: NSRect(origin: NSPoint(x: x, y: ((bounds.height - leadingImage.size.height) / 2).rounded()), size: leadingImage.size))
+            x += leadingImage.size.width + Self.chevronSpacing
+        }
+        if !title.isEmpty {
+            let text = NSAttributedString(string: title, attributes: [.font: drawnFont, .foregroundColor: NSColor.labelColor])
+            text.draw(at: NSPoint(x: x, y: ((bounds.height - titleSize.height) / 2).rounded()))
+        }
 
         let chevronRect = NSRect(
-            x: bounds.maxX - Self.horizontalPadding - chevron.size.width,
-            y: (bounds.height - chevron.size.height) / 2,
+            x: (bounds.maxX - Self.horizontalPadding - chevron.size.width).rounded(),
+            y: ((bounds.height - chevron.size.height) / 2).rounded(),
             width: chevron.size.width,
             height: chevron.size.height
         )

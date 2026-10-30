@@ -18,6 +18,8 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
     private let onPick: @MainActor (StyleValue) -> Void
     private let onClose: @MainActor () -> Void
     private(set) var values: [StyleValue]
+    /// Tall enough for its rows; the overlay may make it shorter to fit the display.
+    let preferredSize: CGSize
     let searchField: NSSearchField?
     let table = NSTableView()
 
@@ -30,7 +32,8 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         self.onPick = onPick
         self.onClose = onClose
         searchField = isSearchable ? NSSearchField() : nil
-        super.init(frame: CGRect(origin: .zero, size: Self.size(rows: values.count, isSearchable: isSearchable)))
+        preferredSize = Self.size(rows: values.count, isSearchable: isSearchable)
+        super.init(frame: CGRect(origin: .zero, size: preferredSize))
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel(isSearchable ? "Fonts" : "Choices")
@@ -194,12 +197,21 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
         Self.rowView(for: values[row])
     }
 
-    /// Fonts in their own typeface; line widths with a line that thick in front.
+    static let swatchDiameter: CGFloat = 14
+
+    /// Fonts in their own typeface; colors and line widths with a swatch or a line that thick in front.
     static func rowView(for value: StyleValue) -> NSView {
         let label = NSTextField(labelWithString: value.title)
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityLabel(value.title)
         switch value {
+        case .color(let color):
+            label.font = .systemFont(ofSize: NSFont.systemFontSize)
+            let swatch = NSImageView(image: colorSwatch(color))
+            swatch.setContentHuggingPriority(.required, for: .horizontal)
+            let row = NSStackView(views: [swatch, label])
+            row.spacing = 8
+            return row
         case .font(let font):
             label.font = font.font(size: sampleSize)
             return label
@@ -214,6 +226,22 @@ final class DropdownListPanel: NSView, NSTableViewDataSource, NSTableViewDelegat
             row.spacing = 8
             return row
         }
+    }
+
+    /// A filled circle of the color with a faint ring, so white and black show on any background.
+    static func colorSwatch(_ color: AnnotationColor) -> NSImage {
+        let size = NSSize(width: swatchDiameter, height: swatchDiameter)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let circle = NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5))
+            color.nsColor.setFill()
+            circle.fill()
+            NSColor.labelColor.withAlphaComponent(0.3).setStroke()
+            circle.lineWidth = 1
+            circle.stroke()
+            return true
+        }
+        image.accessibilityDescription = color.displayName
+        return image
     }
 
     static func linePreview(width: CGFloat) -> NSImage {

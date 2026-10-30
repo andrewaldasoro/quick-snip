@@ -258,12 +258,4 @@ struct ToolbarControlDrawingTests {
         #expect(button.fillAlpha == 0)
         #expect(button.accessibilityLabel() == "Save (⌘S)")
     }
-
-    @Test func selectedSwatchDrawsARing() throws {
-        let swatch = ColorSwatchButton(color: .green, label: "Green (4)")
-        swatch.setFrameSize(NSSize(width: AnnotationToolbar.swatchSize, height: AnnotationToolbar.swatchSize))
-        #expect(try centerAlpha(swatch) == 0)
-        swatch.state = .on
-        #expect(try centerAlpha(swatch) > 0)
-    }
 }

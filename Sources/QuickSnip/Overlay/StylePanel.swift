@@ -1,12 +1,11 @@
 import AppKit
 
 /// The style of what's being drawn or is selected, in its own small glass panel next to the
-/// toolbar, on one row: colors | a Width dropdown for shapes, lines and strokes; or Font and Size
-/// dropdowns and the alignment buttons for text.
+/// toolbar, on one row: a Color dropdown | a Width dropdown for shapes, lines and strokes; or Font
+/// and Size dropdowns and the alignment buttons for text.
 final class StylePanel: NSView {
     struct Actions {
         var openList: @MainActor (StyleList) -> Void
-        var selectColor: @MainActor (AnnotationColor) -> Void
         var selectAlignment: @MainActor (TextAlignment) -> Void
     }
 
@@ -18,11 +17,10 @@ final class StylePanel: NSView {
 
     private let actions: Actions
     private(set) var options: StyleOptions?
-    private(set) var colorButtons: [AnnotationColor: NSButton] = [:]
     private(set) var buttons: [StyleList: DropdownButton] = [:]
     private(set) var alignmentButtons: [TextAlignment: NSButton] = [:]
     private let row = NSStackView()
-    /// Everything after the colors; rebuilt when switching between shapes and text.
+    /// Everything after the color dropdown; rebuilt when switching between shapes and text.
     private var styleViews: [NSView] = []
 
     init(actions: Actions) {
@@ -36,13 +34,7 @@ final class StylePanel: NSView {
         row.alignment = .centerY
         row.spacing = Self.spacing
         row.translatesAutoresizingMaskIntoConstraints = false
-        for color in AnnotationColor.allCases {
-            let button = ColorSwatchButton(color: color, label: AnnotationToolbar.label(for: color))
-            button.target = self
-            button.action = #selector(colorClicked(_:))
-            colorButtons[color] = button
-            row.addArrangedSubview(button)
-        }
+        row.addArrangedSubview(makeDropdown(.color, label: "Color"))
 
         let content = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
@@ -75,9 +67,8 @@ final class StylePanel: NSView {
     func update(options: StyleOptions, color: AnnotationColor, openList: StyleList?) {
         if !Self.isSameKind(options, self.options) { rebuild(for: options) }
         self.options = options
-        for (candidate, button) in colorButtons {
-            button.state = candidate == color ? .on : .off
-        }
+        buttons[.color]?.leadingImage = DropdownListPanel.colorSwatch(color)
+        buttons[.color]?.setAccessibilityValue(color.displayName)
         switch options {
         case .stroke(let width):
             buttons[.lineWidth]?.title = StyleValue.lineWidth(width).title
@@ -111,7 +102,7 @@ final class StylePanel: NSView {
             row.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
-        buttons = [:]
+        buttons = buttons.filter { $0.key == .color }
         alignmentButtons = [:]
         styleViews = [ToolbarDivider()]
         switch options {
@@ -147,11 +138,6 @@ final class StylePanel: NSView {
         button.action = #selector(alignmentClicked(_:))
         alignmentButtons[alignment] = button
         return button
-    }
-
-    @objc private func colorClicked(_ sender: NSButton) {
-        guard let color = colorButtons.first(where: { $0.value === sender })?.key else { return }
-        actions.selectColor(color)
     }
 
     @objc private func dropdownClicked(_ sender: DropdownButton) {

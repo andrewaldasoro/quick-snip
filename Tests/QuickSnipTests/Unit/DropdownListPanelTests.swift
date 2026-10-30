@@ -110,4 +110,10 @@ struct DropdownListPanelTests {
         #expect(panel.numberOfRows(in: panel.table) == 2)
         #expect((panel.tableView(panel.table, viewFor: nil, row: 1) as? NSTextField)?.stringValue == "14 px")
     }
+
+    @Test func colorsShowASwatchAndTheirName() throws {
+        let row = try #require(DropdownListPanel.rowView(for: .color(.blue)) as? NSStackView)
+        #expect((row.arrangedSubviews.first as? NSImageView)?.image?.accessibilityDescription == "Blue")
+        #expect((row.arrangedSubviews.last as? NSTextField)?.stringValue == "Blue")
+    }
 }

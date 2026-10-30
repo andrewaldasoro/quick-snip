@@ -15,7 +15,6 @@ final class AnnotationToolbar: NSView {
 
     static let commands: [OverlayCommand] = [.undo, .redo, .cancel, .readText, .save, .copy]
     static let buttonSize = NSSize(width: 28, height: 28)
-    static let swatchSize: CGFloat = 22
     static let cornerRadius: CGFloat = 14
     static let insets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
 
@@ -427,70 +426,6 @@ final class PrimaryToolbarButton: NSButton {
             rect.fill(using: .sourceAtop)
             return true
         }
-    }
-}
-
-/// Round color swatch. The selected one gets a ring, like the macOS Markup palette.
-final class ColorSwatchButton: NSButton {
-    let color: AnnotationColor
-    private var isHovered = false { didSet { needsDisplay = true } }
-
-    init(color: AnnotationColor, label: String) {
-        self.color = color
-        super.init(frame: NSRect(x: 0, y: 0, width: AnnotationToolbar.swatchSize, height: AnnotationToolbar.swatchSize))
-        title = ""
-        isBordered = false
-        setButtonType(.pushOnPushOff)
-        toolTip = label
-        setAccessibilityLabel(label)
-        translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: AnnotationToolbar.swatchSize),
-            heightAnchor.constraint(equalToConstant: AnnotationToolbar.swatchSize),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsets() }
-    override var intrinsicContentSize: NSSize { NSSize(width: AnnotationToolbar.swatchSize, height: AnnotationToolbar.swatchSize) }
-
-    override var state: NSControl.StateValue {
-        didSet { needsDisplay = true }
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(
-            NSTrackingArea(
-                rect: .zero,
-                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                owner: self
-            ))
-    }
-
-    override func mouseEntered(with event: NSEvent) { isHovered = true }
-    override func mouseExited(with event: NSEvent) { isHovered = false }
-
-    override func draw(_ dirtyRect: NSRect) {
-        let ringWidth: CGFloat = 2
-        if state == .on || isHovered {
-            let ring = NSBezierPath(ovalIn: bounds.insetBy(dx: ringWidth / 2, dy: ringWidth / 2))
-            ring.lineWidth = ringWidth
-            (state == .on ? NSColor.labelColor.withAlphaComponent(0.85) : .labelColor.withAlphaComponent(0.25)).setStroke()
-            ring.stroke()
-        }
-        let dot = NSBezierPath(ovalIn: bounds.insetBy(dx: 5, dy: 5))
-        color.nsColor.setFill()
-        dot.fill()
-        // Hairline edge so white and black stay visible on any background.
-        NSColor.labelColor.withAlphaComponent(0.2).setStroke()
-        dot.lineWidth = 0.5
-        dot.stroke()
     }
 }
 

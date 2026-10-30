@@ -21,6 +21,17 @@ struct DropdownButtonTests {
         #expect(button.toolTip == "Font")
     }
 
+    @Test func aLeadingSwatchAddsWidthAndAnEmptyTitleTakesNone() {
+        let button = DropdownButton(title: "", label: "Color")
+        let bare = button.intrinsicContentSize.width
+        button.leadingImage = DropdownListPanel.colorSwatch(.red)
+        #expect(button.intrinsicContentSize.width > bare)
+        button.setFrameSize(button.intrinsicContentSize)
+        let rep = button.bitmapImageRepForCachingDisplay(in: button.bounds)
+        #expect(rep != nil)
+        if let rep { button.cacheDisplay(in: button.bounds, to: rep) }
+    }
+
     @Test func titleFontOverrideChangesTheWidth() {
         let button = DropdownButton(title: "Wide", label: "Font")
         let plain = button.intrinsicContentSize.width

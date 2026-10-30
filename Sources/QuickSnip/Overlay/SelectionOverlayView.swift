@@ -118,7 +118,7 @@ final class SelectionOverlayView: NSView {
             canUndo: session.document.canUndo,
             canRedo: session.document.canRedo
         )
-        toolbar.frame = ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds)
+        toolbar.frame = pixelAligned(ToolbarLayout.frame(size: toolbar.fittingSize, selection: selection, bounds: bounds))
         toolbar.isHidden = false
         updateStylePanel(toolbar: toolbar.frame, selection: selection)
     }
@@ -129,26 +129,29 @@ final class SelectionOverlayView: NSView {
             closeDropdown()
             return
         }
-        if let dropdown, StyleChoices.current(for: dropdown.list, options: options) == nil { closeDropdown() }
+        if let dropdown, StyleChoices.current(for: dropdown.list, options: options, color: session.styleColor) == nil { closeDropdown() }
         let panel = stylePanel ?? makeStylePanel()
         panel.update(options: options, color: session.styleColor, openList: dropdown?.list)
-        panel.frame = StylePanelLayout.frame(size: panel.fittingSize, toolbar: toolbar, selection: selection, bounds: bounds)
+        panel.frame = pixelAligned(StylePanelLayout.frame(size: panel.fittingSize, toolbar: toolbar, selection: selection, bounds: bounds))
         panel.isHidden = false
         if let dropdown, let button = panel.buttons[dropdown.list] {
             // The buttons only have frames after a layout pass; the list hangs off one.
             panel.layoutSubtreeIfNeeded()
-            dropdown.panel.frame = dropdownFrame(size: dropdown.panel.frame.size, below: button)
+            let anchor = convert(button.bounds, from: button)
+            dropdown.panel.frame = pixelAligned(DropdownLayout.frame(size: dropdown.panel.preferredSize, anchor: anchor, bounds: bounds))
         }
+    }
+
+    /// Panels placed from mouse positions and measured widths land on fractional points, where
+    /// the glass and every glyph in it render blurry; snap them to whole pixels.
+    private func pixelAligned(_ rect: CGRect) -> CGRect {
+        backingAlignedRect(rect, options: .alignAllEdgesNearest)
     }
 
     private func makeStylePanel() -> StylePanel {
         let panel = StylePanel(
             actions: .init(
                 openList: { [weak self] list in self?.toggleDropdown(list) },
-                selectColor: { [weak self] color in
-                    self?.session.setColor(color)
-                    self?.restoreFocus()
-                },
                 selectAlignment: { [weak self] alignment in
                     self?.session.setAlignment(alignment)
                     self?.restoreFocus()
@@ -200,7 +203,7 @@ final class SelectionOverlayView: NSView {
         let families = StyleChoices.isSearchable(list) ? FontCatalog(provider: fontFamilies).families : []
         let panel = DropdownListPanel(
             values: StyleChoices.values(for: list, options: options, fontFamilies: families),
-            current: StyleChoices.current(for: list, options: options),
+            current: StyleChoices.current(for: list, options: options, color: session.styleColor),
             isSearchable: StyleChoices.isSearchable(list),
             onPick: { [weak self] value in self?.apply(value) },
             onClose: { [weak self] in self?.closeDropdown() }
@@ -214,6 +217,7 @@ final class SelectionOverlayView: NSView {
     private func apply(_ value: StyleValue) {
         closeDropdown()
         switch value {
+        case .color(let color): session.setColor(color)
         case .lineWidth(let width): session.setLineWidth(width)
         case .font(let font): session.setFont(font)
         case .fontSize(let size): session.setFontSize(size)
@@ -226,18 +230,6 @@ final class SelectionOverlayView: NSView {
         open.panel.removeFromSuperview()
         stylePanel?.markOpen(nil)
         restoreFocus()
-    }
-
-    /// Under its button, left-aligned like a pop-up menu; above it when there's no room below.
-    private func dropdownFrame(size: CGSize, below button: NSView) -> CGRect {
-        let anchor = convert(button.bounds, from: button)
-        let margin = ToolbarLayout.margin
-        let x = min(max(anchor.minX, bounds.minX + margin), bounds.maxX - margin - size.width)
-        let below = anchor.maxY + StylePanelLayout.gap
-        let y =
-            below + size.height <= bounds.maxY - margin
-            ? below : max(bounds.minY + margin, anchor.minY - StylePanelLayout.gap - size.height)
-        return CGRect(x: x, y: y, width: size.width, height: size.height)
     }
 
     // MARK: Drawing

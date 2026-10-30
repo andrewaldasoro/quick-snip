@@ -143,7 +143,7 @@ struct SelectionOverlayViewStyleTests {
         let anchor = harness.view.convert(button.bounds, from: button)
 
         #expect(list.frame.minX == anchor.minX)
-        #expect(list.frame.minY == anchor.maxY + StylePanelLayout.gap)
+        #expect(list.frame.minY == anchor.maxY + DropdownLayout.gap)
     }
 
     @Test func dropdownOpensAboveItsButtonWithoutRoomBelow() throws {
@@ -153,7 +153,7 @@ struct SelectionOverlayViewStyleTests {
         let list = try #require(harness.view.dropdown?.panel)
         let button = try #require(harness.view.stylePanel?.buttons[.fontSize])
 
-        #expect(list.frame.maxY == harness.view.convert(button.bounds, from: button).minY - StylePanelLayout.gap)
+        #expect(list.frame.maxY == harness.view.convert(button.bounds, from: button).minY - DropdownLayout.gap)
         #expect(harness.view.bounds.contains(list.frame))
     }
 
@@ -208,16 +208,21 @@ struct SelectionOverlayViewStyleTests {
 
     // MARK: Colors and alignment
 
-    @Test func panelColorsColorWhatsSelected() throws {
+    @Test func colorDropdownColorsWhatsSelected() throws {
         let harness = make()
         harness.session.toggleTool(.rectangle)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
         let panel = try #require(harness.view.stylePanel)
 
-        panel.colorButtons[.green]?.performClick(nil)
+        harness.view.toggleDropdown(.color)
+        let list = try #require(harness.view.dropdown?.panel)
+        #expect(list.values == AnnotationColor.allCases.map(StyleValue.color))
+        #expect(list.table.selectedRow == AnnotationColor.allCases.firstIndex(of: .red))
+        list.moveSelection(by: 3)  // red → green
+        list.pickSelected()
 
         #expect(harness.session.document.annotations.first?.style.color == .green)
-        #expect(panel.colorButtons[.green]?.state == .on)
+        #expect(panel.buttons[.color]?.leadingImage?.accessibilityDescription == "Green")
     }
 
     @Test func alignmentButtonsAlignText() throws {
@@ -273,6 +278,20 @@ struct SelectionOverlayViewStyleTests {
         harness.view.commitTextEntry()
 
         #expect(harness.view.toolbar?.toolButtons[.text]?.state == .off)
+    }
+
+    /// Regression: panels placed at fractional points rendered blurry.
+    @Test func panelsSitOnWholePixels() throws {
+        let harness = make(selection: CGRect(x: 100.3, y: 100.6, width: 640.4, height: 200.2))
+        harness.session.toggleTool(.text)
+        harness.view.toggleDropdown(.fontSize)
+        let frames = [harness.view.toolbar?.frame, harness.view.stylePanel?.frame, harness.view.dropdown?.panel.frame].compactMap { $0 }
+        #expect(frames.count == 3)
+        let scale = harness.window.backingScaleFactor
+        for frame in frames {
+            let pixels = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
+            #expect(pixels == pixels.integral, "\(frame) at \(scale)×")
+        }
     }
 
     // MARK: Text entry
