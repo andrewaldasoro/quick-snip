@@ -97,7 +97,7 @@ struct OverlayKeyMapToolTests {
 
     @Test(
         arguments: [
-            ("r", AnnotationTool.rectangle), ("a", .arrow), ("l", .line), ("p", .pen),
+            ("r", AnnotationTool.shape), ("a", .arrow), ("p", .pen),
             ("m", .marker), ("t", .text), ("x", .pixelate),
         ] as [(String, AnnotationTool)])
     func letterPicksTool(key: String, tool: AnnotationTool) {

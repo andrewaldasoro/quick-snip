@@ -71,9 +71,11 @@ final class AnnotationToolbar: NSView {
     override func mouseDragged(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) {}
 
-    func update(tool: AnnotationTool?, canUndo: Bool, canRedo: Bool) {
+    /// `style` is what's drawn next: the Shape and Arrow buttons show its shape and heads.
+    func update(tool: AnnotationTool?, style: AnnotationStyle = .default, canUndo: Bool, canRedo: Bool) {
         for (candidate, button) in toolButtons {
             button.state = candidate == tool ? .on : .off
+            (button as? ToolbarButton)?.symbol = Self.symbol(for: candidate, style: style)
         }
         commandButtons[.undo]?.isEnabled = canUndo
         commandButtons[.redo]?.isEnabled = canRedo
@@ -166,11 +168,10 @@ final class AnnotationToolbar: NSView {
 
     // MARK: Appearance
 
-    static func symbol(for tool: AnnotationTool) -> String {
+    static func symbol(for tool: AnnotationTool, style: AnnotationStyle = .default) -> String {
         switch tool {
-        case .rectangle: "rectangle"
-        case .arrow: "arrow.up.right"
-        case .line: "line.diagonal"
+        case .shape: style.shape.symbol
+        case .arrow: style.arrowHeads.symbol
         case .pen: "pencil.tip"
         case .marker: "highlighter"
         case .text: "character.textbox"
@@ -263,12 +264,24 @@ final class ToolbarButton: NSButton {
 
     private var isHovered = false { didSet { needsDisplay = true } }
 
+    static let symbolPointSize: CGFloat = 14
+
+    /// The SF Symbol shown. Settable, for glyphs that follow a style (Shape, Arrow).
+    var symbol: String? {
+        didSet {
+            guard let symbol, symbol != oldValue else { return }
+            image = Self.symbolImage(symbol)
+        }
+    }
+
     convenience init(symbol: String, label: String, toggles: Bool) {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        let image =
-            NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
-            .withSymbolConfiguration(config) ?? NSImage()
-        self.init(image: image, label: label, toggles: toggles)
+        self.init(image: Self.symbolImage(symbol), label: label, toggles: toggles)
+        self.symbol = symbol
+    }
+
+    static func symbolImage(_ symbol: String) -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .medium)
+        return NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(config) ?? NSImage()
     }
 
     init(image: NSImage, label: String, toggles: Bool) {

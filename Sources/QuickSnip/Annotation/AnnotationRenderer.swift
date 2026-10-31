@@ -23,15 +23,11 @@ enum AnnotationRenderer {
         context.setLineJoin(.round)
 
         switch annotation.kind {
-        case .rectangle(let rect):
-            context.setLineJoin(.miter)
-            context.stroke(rect)
-
-        case .line(let from, let to):
-            strokePolyline([from, to], width: width, in: context)
+        case .shape(let rect):
+            drawShape(annotation.style.shape, in: rect, context: context)
 
         case .arrow(let from, let to):
-            drawArrow(from: from, to: to, width: width, in: context)
+            drawArrow(from: from, to: to, heads: annotation.style.arrowHeads, width: width, in: context)
 
         case .pen(let points):
             strokePolyline(points, width: width, in: context)
@@ -64,21 +60,49 @@ enum AnnotationRenderer {
         max(12, width * 4)
     }
 
-    private static func drawArrow(from: CGPoint, to: CGPoint, width: CGFloat, in context: CGContext) {
+    private static func drawShape(_ shape: ShapeKind, in rect: CGRect, context: CGContext) {
+        switch shape {
+        case .rectangle:
+            context.setLineJoin(.miter)
+            context.stroke(rect)
+        case .oval:
+            context.strokeEllipse(in: rect)
+        }
+    }
+
+    /// Half the head's width at its base, as a fraction of its length.
+    private static let headHalfWidthRatio: CGFloat = 0.45
+
+    private static func drawArrow(from: CGPoint, to: CGPoint, heads: ArrowHeads, width: CGFloat, in context: CGContext) {
         let length = Geometry.distance(from, to)
         guard length > 0 else { return }
-        let head = min(arrowHeadLength(for: width), length)
-        let ux = (to.x - from.x) / length
-        let uy = (to.y - from.y) / length
-        let base = CGPoint(x: to.x - ux * head, y: to.y - uy * head)
-        let halfWidth = head * 0.45
+        // With two heads, each gets at most half the line.
+        let head = min(arrowHeadLength(for: width), heads.hasStartHead ? length / 2 : length)
+        // Stop the shaft inside each head so the round cap doesn't poke through the tip.
+        let inset = head - min(width, head / 2)
+        let shaftStart = heads.hasStartHead ? point(from, toward: to, by: inset) : from
+        let shaftEnd = heads.hasEndHead ? point(to, toward: from, by: inset) : to
+        strokePolyline([shaftStart, shaftEnd], width: width, in: context)
+        if heads.hasEndHead { fillHead(at: to, from: from, length: head, in: context) }
+        if heads.hasStartHead { fillHead(at: from, from: to, length: head, in: context) }
+    }
 
-        // Stop the shaft inside the head so the round cap doesn't poke through the tip.
-        let shaftEnd = CGPoint(x: base.x + ux * min(width, head / 2), y: base.y + uy * min(width, head / 2))
-        strokePolyline([from, shaftEnd], width: width, in: context)
+    private static func point(_ origin: CGPoint, toward target: CGPoint, by distance: CGFloat) -> CGPoint {
+        let length = Geometry.distance(origin, target)
+        guard length > 0 else { return origin }
+        return CGPoint(x: origin.x + (target.x - origin.x) * distance / length, y: origin.y + (target.y - origin.y) * distance / length)
+    }
 
+    /// A filled triangle with its tip at `tip`, pointing away from `tail`.
+    private static func fillHead(at tip: CGPoint, from tail: CGPoint, length head: CGFloat, in context: CGContext) {
+        let length = Geometry.distance(tail, tip)
+        guard length > 0 else { return }
+        let ux = (tip.x - tail.x) / length
+        let uy = (tip.y - tail.y) / length
+        let base = CGPoint(x: tip.x - ux * head, y: tip.y - uy * head)
+        let halfWidth = head * headHalfWidthRatio
         context.beginPath()
-        context.move(to: to)
+        context.move(to: tip)
         context.addLine(to: CGPoint(x: base.x - uy * halfWidth, y: base.y + ux * halfWidth))
         context.addLine(to: CGPoint(x: base.x + uy * halfWidth, y: base.y - ux * halfWidth))
         context.closePath()

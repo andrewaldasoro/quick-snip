@@ -54,6 +54,28 @@ struct AppSettingsTests {
         #expect(!reloaded.showMenuBarIcon)
     }
 
+    @Test func shapeAndArrowHeadsPersistAndDefaultToRectangleAndOneHead() {
+        let store = TestDefaults()
+        let settings = AppSettings(defaults: store.defaults, defaultDirectory: fallback)
+        #expect(settings.shape == .rectangle)
+        #expect(settings.arrowHeads == .end)
+        settings.shape = .oval
+        settings.arrowHeads = .both
+
+        let reloaded = AppSettings(defaults: store.defaults, defaultDirectory: fallback)
+        #expect(reloaded.shape == .oval)
+        #expect(reloaded.arrowHeads == .both)
+    }
+
+    @Test func unknownStoredShapeFallsBack() {
+        let store = TestDefaults()
+        store.defaults.set("star", forKey: AppSettings.Key.shape)
+        store.defaults.set("three", forKey: AppSettings.Key.arrowHeads)
+        let settings = AppSettings(defaults: store.defaults, defaultDirectory: fallback)
+        #expect(settings.shape == .rectangle)
+        #expect(settings.arrowHeads == .end)
+    }
+
     @Test func unknownStoredFormatFallsBackToPNG() {
         let store = TestDefaults()
         store.defaults.set("webp", forKey: AppSettings.Key.imageFormat)

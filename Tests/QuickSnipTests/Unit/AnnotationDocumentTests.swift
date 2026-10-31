@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct AnnotationDocumentTests {
     private func rect(_ x: CGFloat) -> Annotation {
-        Annotation(kind: .rectangle(CGRect(x: x, y: 0, width: 10, height: 10)), style: .default)
+        Annotation(kind: .shape(CGRect(x: x, y: 0, width: 10, height: 10)), style: .default)
     }
 
     @Test func addAppendsInOrder() {
@@ -140,7 +140,7 @@ struct AnnotationDocumentTests {
     @Test func theLastChangeNoticeOfAnUndoSeesWhatsLeft() {
         let document = AnnotationDocument()
         var seen: [(canUndo: Bool, canRedo: Bool)] = []
-        document.add(Annotation(kind: .rectangle(CGRect(x: 0, y: 0, width: 10, height: 10)), style: .default))
+        document.add(Annotation(kind: .shape(CGRect(x: 0, y: 0, width: 10, height: 10)), style: .default))
         document.onChange = { seen.append((document.canUndo, document.canRedo)) }
 
         document.undo()

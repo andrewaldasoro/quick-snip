@@ -6,9 +6,8 @@
 - [x] `Annotation` model: vector kinds + style, hit-testing, offset (`Annotation`, `Geometry`)
 - [x] Canvas: annotations drawn on the overlay, clipped to the selection; select (dashed outline) and move shapes without a tool
 - [x] Tools:
-  - [x] Rectangle
-  - [x] Arrow
-  - [x] Line
+  - [x] Shape: rectangle or oval, picked in the style panel (was Rectangle)
+  - [x] Arrow: no, one or two heads, picked in the style panel (Line merged in)
   - [x] Pen (freehand; click = dot)
   - [x] Marker (translucent, 4× width)
   - [x] Text (inline `NSTextField`, Return/click-away commits, Esc cancels)
@@ -21,6 +20,8 @@
 - [x] Unit tests: model, builder, document/undo, geometry, renderer (pixel checks incl. Retina stroke width), pixelate, layout, toolbar, session routing, view text entry
 - [x] Integration tests: rectangle, arrow, pixelate, text, undo/redo, move + delete, pen + marker + save, resize after annotating, cancel
 - [x] Manual check on real hardware (2026-10-14)
+- [x] Shift: square/circle, 45° arrows, corner resize in proportion; Option: shape from center (live mid-drag, `DrawModifiers`)
+- [ ] Manual check of shapes, arrowheads and modifiers on real hardware
 
 ## Decisions
 

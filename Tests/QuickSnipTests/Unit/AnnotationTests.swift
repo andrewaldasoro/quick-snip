@@ -14,7 +14,7 @@ struct AnnotationTests {
     // MARK: Hit testing
 
     @Test func rectangleHitsOnOutlineOnly() {
-        let a = make(.rectangle(CGRect(x: 10, y: 10, width: 100, height: 60)))
+        let a = make(.shape(CGRect(x: 10, y: 10, width: 100, height: 60)))
         #expect(a.hitTest(CGPoint(x: 10, y: 40)))  // left edge
         #expect(a.hitTest(CGPoint(x: 60, y: 72)))  // just outside bottom edge, within reach
         #expect(!a.hitTest(CGPoint(x: 60, y: 40)))  // middle
@@ -22,7 +22,20 @@ struct AnnotationTests {
     }
 
     @Test func smallRectangleHitsInside() {
-        let a = make(.rectangle(CGRect(x: 10, y: 10, width: 6, height: 6)))
+        let a = make(.shape(CGRect(x: 10, y: 10, width: 6, height: 6)))
+        #expect(a.hitTest(CGPoint(x: 13, y: 13)))
+    }
+
+    @Test func ovalHitsOnItsCurveOnly() {
+        let a = Annotation(kind: .shape(CGRect(x: 10, y: 10, width: 100, height: 60)), style: AnnotationStyle(lineWidth: 4, shape: .oval))
+        #expect(a.hitTest(CGPoint(x: 10, y: 40)))  // leftmost point
+        #expect(a.hitTest(CGPoint(x: 60, y: 12)))  // near the top
+        #expect(!a.hitTest(CGPoint(x: 12, y: 12)))  // the bounding box's corner, outside the curve
+        #expect(!a.hitTest(CGPoint(x: 60, y: 40)))  // middle
+    }
+
+    @Test func smallOvalHitsInside() {
+        let a = Annotation(kind: .shape(CGRect(x: 10, y: 10, width: 6, height: 6)), style: AnnotationStyle(shape: .oval))
         #expect(a.hitTest(CGPoint(x: 13, y: 13)))
     }
 
@@ -32,9 +45,9 @@ struct AnnotationTests {
         #expect(!a.hitTest(CGPoint(x: 200, y: 40)))
     }
 
-    @Test(arguments: [AnnotationKind.line(from: .zero, to: CGPoint(x: 100, y: 0)), .arrow(from: .zero, to: CGPoint(x: 100, y: 0))])
-    func lineAndArrowHitNearSegment(kind: AnnotationKind) {
-        let a = make(kind)
+    @Test(arguments: ArrowHeads.allCases)
+    func arrowHitsNearSegmentWithAnyHeads(heads: ArrowHeads) {
+        let a = Annotation(kind: .arrow(from: .zero, to: CGPoint(x: 100, y: 0)), style: AnnotationStyle(arrowHeads: heads))
         #expect(a.hitTest(CGPoint(x: 50, y: 7)))  // 6 tolerance + 2 half-width
         #expect(!a.hitTest(CGPoint(x: 50, y: 9)))
     }
@@ -66,7 +79,7 @@ struct AnnotationTests {
     }
 
     @Test func rectangleBoundsIncludeStroke() {
-        #expect(make(.rectangle(CGRect(x: 10, y: 10, width: 20, height: 20))).bounds == CGRect(x: 8, y: 8, width: 24, height: 24))
+        #expect(make(.shape(CGRect(x: 10, y: 10, width: 20, height: 20))).bounds == CGRect(x: 8, y: 8, width: 24, height: 24))
     }
 
     @Test func textBoundsStartAtTheOriginAndIgnoreStrokeWidth() {
@@ -79,9 +92,8 @@ struct AnnotationTests {
     }
 
     @Test(arguments: [
-        AnnotationKind.rectangle(CGRect(x: 1, y: 2, width: 3, height: 4)),
+        AnnotationKind.shape(CGRect(x: 1, y: 2, width: 3, height: 4)),
         .pixelate(CGRect(x: 1, y: 2, width: 3, height: 4)),
-        .line(from: CGPoint(x: 1, y: 2), to: CGPoint(x: 3, y: 4)),
         .arrow(from: CGPoint(x: 1, y: 2), to: CGPoint(x: 3, y: 4)),
         .pen([CGPoint(x: 1, y: 2), CGPoint(x: 3, y: 4)]),
         .marker([CGPoint(x: 1, y: 2)]),
@@ -99,6 +111,10 @@ struct AnnotationTests {
     @Test func namesForUndoMenu() {
         #expect(make(.arrow(from: .zero, to: .zero)).name == "Arrow")
         #expect(make(.pixelate(.zero)).name == "Pixelate")
+        #expect(Annotation(kind: .shape(.zero), style: AnnotationStyle(shape: .oval)).name == "Oval")
+        #expect(Annotation(kind: .shape(.zero), style: .default).name == "Rectangle")
+        #expect(Annotation(kind: .arrow(from: .zero, to: .zero), style: AnnotationStyle(arrowHeads: .none)).name == "Line")
+        #expect(Annotation(kind: .arrow(from: .zero, to: .zero), style: AnnotationStyle(arrowHeads: .both)).name == "Double Arrow")
     }
 
     // MARK: Style
@@ -138,5 +154,14 @@ struct AnnotationTests {
         #expect(Set(all.map { "\($0.components)" }).count == all.count)
         #expect(AnnotationColor.red.cgColor.alpha == 1)
         #expect(AnnotationColor.blue.nsColor.blueComponent == 1)
+    }
+
+    @Test(
+        arguments: [
+            (AnnotationKind.shape(.zero), AnnotationTool.shape), (.arrow(from: .zero, to: .zero), .arrow), (.pen([]), .pen),
+            (.marker([]), .marker), (.text("", origin: .zero), .text), (.pixelate(.zero), .pixelate),
+        ] as [(AnnotationKind, AnnotationTool)])
+    func everyKindKnowsItsTool(kind: AnnotationKind, tool: AnnotationTool) {
+        #expect(kind.tool == tool)
     }
 }

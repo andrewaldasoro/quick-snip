@@ -76,7 +76,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.rectangle, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 120))
+        app.draw(.shape, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 150, y: 120))
         app.overlay.send(.copy)
 
         let image = try app.copied()
@@ -197,7 +197,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.line, from: CGPoint(x: 40, y: 140), to: CGPoint(x: 200, y: 140))
+        app.draw(.arrow, from: CGPoint(x: 40, y: 140), to: CGPoint(x: 200, y: 140))
         app.overlay.send(.undo)
         app.overlay.send(.copy)
         let undone = try app.copied()
@@ -208,7 +208,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.line, from: CGPoint(x: 40, y: 140), to: CGPoint(x: 200, y: 140))
+        app.draw(.arrow, from: CGPoint(x: 40, y: 140), to: CGPoint(x: 200, y: 140))
         app.overlay.send(.undo)
         app.overlay.send(.redo)
         app.overlay.send(.copy)
@@ -219,8 +219,8 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
-        app.draw(.rectangle, from: CGPoint(x: 120, y: 40), to: CGPoint(x: 160, y: 80))
+        app.draw(.shape, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
+        app.draw(.shape, from: CGPoint(x: 120, y: 40), to: CGPoint(x: 160, y: 80))
 
         // Drag the first rectangle down by 60pt.
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 120))
@@ -239,7 +239,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
+        app.draw(.shape, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
         app.overlay.send(.copy)
@@ -254,7 +254,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
+        app.draw(.shape, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 80, y: 80))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 60))
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 80, y: 80), to: CGPoint(x: 160, y: 140))
         app.overlay.send(.undo)
@@ -270,7 +270,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.rectangle, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 100, y: 100))
+        app.draw(.shape, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 100, y: 100))
         app.session.setLineWidth(16)
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 55, y: 40), to: CGPoint(x: 85, y: 60))  // top edge, between handles
         app.overlay.send(.copy)
@@ -308,7 +308,7 @@ struct AnnotationFlowTests {
         let app = launchApp()
         await app.captureAndSelect()
 
-        app.draw(.rectangle, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 100, y: 100))
+        app.draw(.shape, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 100, y: 100))
         // Resize from the bottom-right handle with the tool still active.
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 220, y: 170), to: CGPoint(x: 240, y: 180))
         app.overlay.send(.copy)
@@ -322,12 +322,51 @@ struct AnnotationFlowTests {
     @Test func cancelDiscardsAnnotations() async throws {
         let app = launchApp()
         await app.captureAndSelect()
-        app.draw(.rectangle, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 100, y: 100))
+        app.draw(.shape, from: CGPoint(x: 50, y: 50), to: CGPoint(x: 100, y: 100))
 
         app.overlay.send(.cancel)
         #expect(app.pasteboard.written.isEmpty)
 
         await app.coordinator.captureRequested()
         #expect(app.session.document.annotations.isEmpty)
+    }
+
+    @Test func circleAroundABugWithShiftIsCopiedAndOvalIsRemembered() async throws {
+        let store = TestDefaults()
+        let app = launchApp(settings: AppSettings(defaults: store.defaults, defaultDirectory: TestImages.temporaryDirectory()))
+        await app.captureAndSelect()
+
+        app.session.toggleTool(.shape)
+        app.session.setShape(.oval)
+        app.session.mouseDown(on: 1, at: CGPoint(x: 40, y: 40))
+        app.session.mouseDragged(on: 1, to: CGPoint(x: 140, y: 90), modifiers: DrawModifiers(isConstrained: true))
+        app.session.mouseUp(on: 1, at: CGPoint(x: 140, y: 90), modifiers: DrawModifiers(isConstrained: true))
+        app.overlay.send(.copy)
+
+        // A 100 pt circle at (40, 40): its bottom reaches y 140, past where the drag ended.
+        let image = try app.copied()
+        #expect(app.pixel(image, atPoint: 90, 140).isClose(to: .red))
+        #expect(app.pixel(image, atPoint: 40, 90).isClose(to: .red))
+        #expect(app.pixel(image, atPoint: 42, 42) == original(atPoint: 42, 42))  // outside the curve
+        #expect(app.pixel(image, atPoint: 90, 90) == original(atPoint: 90, 90))
+
+        await app.captureAndSelect()
+        #expect(app.session.style.shape == .oval)
+    }
+
+    @Test func doubleArrowIsCopiedWithAHeadAtEachEnd() async throws {
+        let app = launchApp()
+        await app.captureAndSelect()
+
+        app.session.toggleTool(.arrow)
+        app.session.setArrowHeads(.both)
+        app.draw(.arrow, from: CGPoint(x: 40, y: 100), to: CGPoint(x: 200, y: 100))
+        app.overlay.send(.copy)
+
+        // 4 pt line: a head's 16 pt sides spread to ±7 pt, the shaft only ±2 pt.
+        let image = try app.copied()
+        #expect(app.pixel(image, atPoint: 50, 96).isClose(to: .red))
+        #expect(app.pixel(image, atPoint: 190, 96).isClose(to: .red))
+        #expect(app.pixel(image, atPoint: 120, 96) == original(atPoint: 120, 96))
     }
 }

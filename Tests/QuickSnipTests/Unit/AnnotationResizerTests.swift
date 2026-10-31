@@ -14,7 +14,7 @@ struct AnnotationResizerTests {
     // MARK: Handles
 
     @Test func rectanglesAndPixelateHaveAllEightFrameHandles() {
-        for kind in [AnnotationKind.rectangle(rect), .pixelate(rect)] {
+        for kind in [AnnotationKind.shape(rect), .pixelate(rect)] {
             let handles = AnnotationResizer.handles(for: annotation(kind))
             #expect(handles.map(\.handle) == SelectionHandle.allCases.map { .frame($0) })
             #expect(handles.first?.point == CGPoint(x: 50, y: 20))
@@ -22,7 +22,7 @@ struct AnnotationResizerTests {
     }
 
     @Test func linesAndArrowsHaveOneHandlePerEnd() {
-        let line = annotation(.line(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 90, y: 40)))
+        let line = annotation(.arrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 90, y: 40)))
         let handles = AnnotationResizer.handles(for: line)
         #expect(handles.map(\.handle) == [.start, .end])
         #expect(handles.map(\.point) == [CGPoint(x: 10, y: 10), CGPoint(x: 90, y: 40)])
@@ -46,14 +46,14 @@ struct AnnotationResizerTests {
     // MARK: Hit testing
 
     @Test func hitTestFindsTheHandleWithinTolerance() {
-        let rectangle = annotation(.rectangle(rect))
+        let rectangle = annotation(.shape(rect))
         #expect(AnnotationResizer.hitTest(CGPoint(x: 154, y: 84), on: rectangle) == .frame(.bottomRight))
         #expect(AnnotationResizer.hitTest(CGPoint(x: 100, y: 22), on: rectangle) == .frame(.top))
         #expect(AnnotationResizer.hitTest(CGPoint(x: 100, y: 50), on: rectangle) == nil)
     }
 
     @Test func cornersWinOverEdgesOnTinyShapes() {
-        let tiny = annotation(.rectangle(CGRect(x: 50, y: 50, width: 4, height: 4)))
+        let tiny = annotation(.shape(CGRect(x: 50, y: 50, width: 4, height: 4)))
         #expect(AnnotationResizer.hitTest(CGPoint(x: 51, y: 51), on: tiny) == .frame(.topLeft))
     }
 
@@ -65,8 +65,8 @@ struct AnnotationResizerTests {
         (.bottom, CGPoint(x: 0, y: 100), CGRect(x: 50, y: 20, width: 100, height: 80)),
     ])
     func rectangleResizesFromItsHandle(handle: SelectionHandle, to point: CGPoint, expected: CGRect) {
-        let resized = AnnotationResizer.resized(annotation(.rectangle(rect)), dragging: .frame(handle), to: point)
-        #expect(resized?.kind == .rectangle(expected))
+        let resized = AnnotationResizer.resized(annotation(.shape(rect)), dragging: .frame(handle), to: point)
+        #expect(resized?.kind == .shape(expected))
     }
 
     @Test func pixelateResizesLikeARectangle() {
@@ -75,7 +75,7 @@ struct AnnotationResizerTests {
     }
 
     @Test func resizeKeepsIDAndStyle() {
-        let original = Annotation(kind: .rectangle(rect), style: AnnotationStyle(color: .blue, lineWidth: 8))
+        let original = Annotation(kind: .shape(rect), style: AnnotationStyle(color: .blue, lineWidth: 8))
         let resized = AnnotationResizer.resized(original, dragging: .frame(.right), to: CGPoint(x: 200, y: 50))
         #expect(resized?.id == original.id)
         #expect(resized?.style == original.style)
@@ -84,10 +84,10 @@ struct AnnotationResizerTests {
     @Test func draggingALineEndMovesOnlyThatEnd() {
         let from = CGPoint(x: 10, y: 10)
         let to = CGPoint(x: 90, y: 40)
-        let line = annotation(.line(from: from, to: to))
+        let line = annotation(.arrow(from: from, to: to))
         let arrow = annotation(.arrow(from: from, to: to))
 
-        #expect(AnnotationResizer.resized(line, dragging: .start, to: CGPoint(x: 0, y: 0))?.kind == .line(from: .zero, to: to))
+        #expect(AnnotationResizer.resized(line, dragging: .start, to: CGPoint(x: 0, y: 0))?.kind == .arrow(from: .zero, to: to))
         #expect(
             AnnotationResizer.resized(arrow, dragging: .end, to: CGPoint(x: 120, y: 60))?.kind
                 == .arrow(from: from, to: CGPoint(x: 120, y: 60)))
@@ -106,13 +106,13 @@ struct AnnotationResizerTests {
     }
 
     @Test func resizingBelowTheMinimumSizeIsRejected() {
-        #expect(AnnotationResizer.resized(annotation(.rectangle(rect)), dragging: .frame(.right), to: CGPoint(x: 51, y: 50)) == nil)
-        let line = annotation(.line(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 90, y: 40)))
+        #expect(AnnotationResizer.resized(annotation(.shape(rect)), dragging: .frame(.right), to: CGPoint(x: 51, y: 50)) == nil)
+        let line = annotation(.arrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 90, y: 40)))
         #expect(AnnotationResizer.resized(line, dragging: .end, to: CGPoint(x: 11, y: 11)) == nil)
     }
 
     @Test func mismatchedHandlesAreIgnored() {
-        #expect(AnnotationResizer.resized(annotation(.rectangle(rect)), dragging: .start, to: .zero) == nil)
+        #expect(AnnotationResizer.resized(annotation(.shape(rect)), dragging: .start, to: .zero) == nil)
         #expect(AnnotationResizer.resized(annotation(.text("Hi", origin: .zero)), dragging: .frame(.top), to: .zero) == nil)
         #expect(AnnotationResizer.resized(annotation(.text("Hi", origin: .zero)), dragging: .end, to: .zero) == nil)
     }
@@ -186,5 +186,35 @@ struct AnnotationResizerTests {
             return
         }
         #expect(origin == resized.bounds.origin)  // click text's origin is its box's top-left
+    }
+
+    // MARK: Shift
+
+    private let shift = DrawModifiers(isConstrained: true)
+
+    @Test func shiftCornerKeepsTheShapesProportions() {
+        let resized = AnnotationResizer.resized(
+            annotation(.shape(rect)), dragging: .frame(.bottomRight), to: CGPoint(x: 250, y: 90), modifiers: shift)
+        #expect(resized?.kind == .shape(CGRect(x: 50, y: 20, width: 200, height: 120)))
+    }
+
+    @Test func shiftCornerKeepsACircleRound() {
+        let circle = Annotation(kind: .shape(CGRect(x: 0, y: 0, width: 40, height: 40)), style: AnnotationStyle(shape: .oval))
+        let resized = AnnotationResizer.resized(circle, dragging: .frame(.topLeft), to: CGPoint(x: -20, y: 30), modifiers: shift)
+        #expect(resized?.kind == .shape(CGRect(x: -20, y: -20, width: 60, height: 60)))
+    }
+
+    @Test func shiftLeavesEdgeHandlesFree() {
+        let resized = AnnotationResizer.resized(
+            annotation(.shape(rect)), dragging: .frame(.right), to: CGPoint(x: 250, y: 50), modifiers: shift)
+        #expect(resized?.kind == .shape(CGRect(x: 50, y: 20, width: 200, height: 60)))
+    }
+
+    @Test func shiftSnapsTheDraggedArrowEnd() {
+        let arrow = annotation(.arrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 90, y: 40)))
+        let end = AnnotationResizer.resized(arrow, dragging: .end, to: CGPoint(x: 92, y: 13), modifiers: shift)
+        #expect(end?.kind == .arrow(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 92, y: 10)))
+        let start = AnnotationResizer.resized(arrow, dragging: .start, to: CGPoint(x: 88, y: -10), modifiers: shift)
+        #expect(start?.kind == .arrow(from: CGPoint(x: 90, y: -10), to: CGPoint(x: 90, y: 40)))
     }
 }

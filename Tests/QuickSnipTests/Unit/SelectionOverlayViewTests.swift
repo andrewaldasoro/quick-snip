@@ -193,11 +193,11 @@ struct SelectionOverlayViewEditingTests {
     @Test func toolbarReflectsToolAndUndoState() throws {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
-        session.toggleTool(.rectangle)
+        session.toggleTool(.shape)
         TestSessions.drag(session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 100, y: 100))
 
         let toolbar = try #require(view.toolbar)
-        #expect(toolbar.toolButtons[.rectangle]?.state == .off)  // off once the shape is drawn
+        #expect(toolbar.toolButtons[.shape]?.state == .off)  // off once the shape is drawn
         #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
     }
 
@@ -266,7 +266,7 @@ struct SelectionOverlayViewEditingTests {
     @Test func annotationsAreDrawnOnTheOverlay() throws {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
-        session.toggleTool(.rectangle)
+        session.toggleTool(.shape)
         TestSessions.drag(session, on: 1, from: CGPoint(x: 100, y: 70), to: CGPoint(x: 160, y: 130))
         view.toolbar?.isHidden = true
 

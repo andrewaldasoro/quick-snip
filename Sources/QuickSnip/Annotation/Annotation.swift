@@ -1,7 +1,9 @@
 import AppKit
 
 enum AnnotationTool: String, CaseIterable, Sendable {
-    case rectangle, arrow, line, pen, marker, text, pixelate
+    /// The Shape tool draws a rectangle or oval (`AnnotationStyle.shape`); the Arrow tool a
+    /// line with no, one or two heads (`AnnotationStyle.arrowHeads`).
+    case shape, arrow, pen, marker, text, pixelate
 
     var displayName: String { rawValue.capitalized }
 }
@@ -43,13 +45,18 @@ struct AnnotationStyle: Equatable, Sendable {
     var font: TextFont = .system
     var fontSize: CGFloat = TextSize.default
     var alignment: TextAlignment = .left
+    /// Shapes only.
+    var shape: ShapeKind = .rectangle
+    /// Arrows only.
+    var arrowHeads: ArrowHeads = .end
 
     static let `default` = AnnotationStyle()
 }
 
 enum AnnotationKind: Equatable, Sendable {
-    case rectangle(CGRect)
-    case line(from: CGPoint, to: CGPoint)
+    /// A rectangle or oval, by `AnnotationStyle.shape`.
+    case shape(CGRect)
+    /// A line with heads by `AnnotationStyle.arrowHeads`.
     case arrow(from: CGPoint, to: CGPoint)
     case pen([CGPoint])
     case marker([CGPoint])
@@ -57,6 +64,18 @@ enum AnnotationKind: Equatable, Sendable {
     /// dragged out with the text tool. See `TextLayout`.
     case text(String, origin: CGPoint, boxWidth: CGFloat? = nil)
     case pixelate(CGRect)
+
+    /// The tool that draws this kind.
+    var tool: AnnotationTool {
+        switch self {
+        case .shape: .shape
+        case .arrow: .arrow
+        case .pen: .pen
+        case .marker: .marker
+        case .text: .text
+        case .pixelate: .pixelate
+        }
+    }
 }
 
 /// A vector annotation in display-local points (top-left origin), the same space as the selection.
@@ -76,9 +95,8 @@ struct Annotation: Identifiable, Equatable, Sendable {
 
     var name: String {
         switch kind {
-        case .rectangle: "Rectangle"
-        case .line: "Line"
-        case .arrow: "Arrow"
+        case .shape: style.shape.displayName
+        case .arrow: style.arrowHeads.annotationName
         case .pen: "Pen"
         case .marker: "Marker"
         case .text: "Text"
@@ -96,11 +114,11 @@ struct Annotation: Identifiable, Equatable, Sendable {
     var bounds: CGRect {
         let half = strokeWidth / 2
         switch kind {
-        case .rectangle(let rect):
+        case .shape(let rect):
             return rect.insetBy(dx: -half, dy: -half)
         case .pixelate(let rect):
             return rect
-        case .line(let a, let b), .arrow(let a, let b):
+        case .arrow(let a, let b):
             return Geometry.rect(from: a, to: b).insetBy(dx: -strokeWidth * 2, dy: -strokeWidth * 2)
         case .pen(let points), .marker(let points):
             return Geometry.boundingRect(of: points).insetBy(dx: -half, dy: -half)
@@ -113,13 +131,11 @@ struct Annotation: Identifiable, Equatable, Sendable {
     func hitTest(_ point: CGPoint, tolerance: CGFloat = 6) -> Bool {
         let reach = tolerance + strokeWidth / 2
         switch kind {
-        case .rectangle(let rect):
-            let outer = rect.insetBy(dx: -reach, dy: -reach)
-            let inner = rect.insetBy(dx: reach, dy: reach)
-            return outer.contains(point) && !(inner.width > 0 && inner.height > 0 && inner.contains(point))
+        case .shape(let rect):
+            return isOnOutline(of: rect, point, reach: reach)
         case .pixelate(let rect):
             return rect.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
-        case .line(let a, let b), .arrow(let a, let b):
+        case .arrow(let a, let b):
             return Geometry.distance(from: point, toSegment: a, b) <= reach
         case .pen(let points), .marker(let points):
             return Geometry.distance(from: point, toPolyline: points) <= reach
@@ -128,13 +144,25 @@ struct Annotation: Identifiable, Equatable, Sendable {
         }
     }
 
+    /// Shapes are picked by their outline, not their inside, so what's under them stays clickable.
+    private func isOnOutline(of rect: CGRect, _ point: CGPoint, reach: CGFloat) -> Bool {
+        let outer = rect.insetBy(dx: -reach, dy: -reach)
+        let inner = rect.insetBy(dx: reach, dy: reach)
+        let hasInside = inner.width > 0 && inner.height > 0
+        switch style.shape {
+        case .rectangle:
+            return outer.contains(point) && !(hasInside && inner.contains(point))
+        case .oval:
+            return Geometry.ellipse(outer, contains: point) && !(hasInside && Geometry.ellipse(inner, contains: point))
+        }
+    }
+
     func offsetBy(dx: CGFloat, dy: CGFloat) -> Annotation {
         func move(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + dx, y: p.y + dy) }
         var moved = self
         switch kind {
-        case .rectangle(let rect): moved.kind = .rectangle(rect.offsetBy(dx: dx, dy: dy))
+        case .shape(let rect): moved.kind = .shape(rect.offsetBy(dx: dx, dy: dy))
         case .pixelate(let rect): moved.kind = .pixelate(rect.offsetBy(dx: dx, dy: dy))
-        case .line(let a, let b): moved.kind = .line(from: move(a), to: move(b))
         case .arrow(let a, let b): moved.kind = .arrow(from: move(a), to: move(b))
         case .pen(let points): moved.kind = .pen(points.map(move))
         case .marker(let points): moved.kind = .marker(points.map(move))

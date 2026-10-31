@@ -49,7 +49,7 @@ struct CaptureSessionCheatsheetTests {
     @Test func clickClosesCheatsheetWithoutDrawing() {
         let session = CaptureSession(displays: [display])
         TestSessions.select(session, on: 1, CGRect(x: 10, y: 10, width: 60, height: 50))
-        session.toggleTool(.rectangle)
+        session.toggleTool(.shape)
         session.toggleCheatsheet()
 
         TestSessions.drag(session, on: 1, from: CGPoint(x: 20, y: 20), to: CGPoint(x: 40, y: 40))

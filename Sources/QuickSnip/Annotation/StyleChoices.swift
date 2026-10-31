@@ -29,7 +29,7 @@ enum StyleChoices {
         switch (list, options) {
         case (.color, _):
             return AnnotationColor.allCases.map(StyleValue.color)
-        case (.lineWidth, .stroke):
+        case (.lineWidth, _) where options.lineWidth != nil:
             return LineWidth.presets.map(StyleValue.lineWidth)
         case (.font, .text):
             let installed = fontFamilies.map { StyleValue.font(.family($0)) }
@@ -45,7 +45,7 @@ enum StyleChoices {
     static func current(for list: StyleList, options: StyleOptions, color: AnnotationColor) -> StyleValue? {
         switch (list, options) {
         case (.color, _): .color(color)
-        case (.lineWidth, .stroke(let width)): .lineWidth(width)
+        case (.lineWidth, _): options.lineWidth.map(StyleValue.lineWidth)
         case (.font, .text(let font, _, _)): .font(font)
         case (.fontSize, .text(_, let size, _)): .fontSize(size)
         default: nil

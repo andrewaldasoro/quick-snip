@@ -43,8 +43,8 @@ struct OverlayCursorTests {
     }
 
     @Test func drawingToolsShowCrosshairInsideAndArrowOutside() {
-        #expect(resolve(hit: .inside, tool: .rectangle, inside: true) == .crosshair)
-        #expect(resolve(tool: .rectangle) == .arrow)
+        #expect(resolve(hit: .inside, tool: .shape, inside: true) == .crosshair)
+        #expect(resolve(tool: .shape) == .arrow)
     }
 
     @Test func textToolShowsIBeamInside() {

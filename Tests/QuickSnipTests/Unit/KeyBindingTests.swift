@@ -28,7 +28,7 @@ struct KeyBindingTests {
     @Test(
         arguments: [
             (KeyBinding(.character("z"), [.command, .shift], .redo), "⇧⌘Z"),
-            (KeyBinding(.character("r"), .selectTool(.rectangle)), "R"),
+            (KeyBinding(.character("r"), .selectTool(.shape)), "R"),
             (KeyBinding(.code(53, name: "Esc"), .cancel), "Esc"),
             (KeyBinding(.symbol("?"), .toggleCheatsheet), "?"),
             (KeyBinding(.character("c"), [.command, .option, .control], .copy), "⌃⌥⌘C"),

@@ -42,6 +42,15 @@ struct ShortcutCheatsheet: Equatable, Sendable {
             note: "Press the key again to move annotations."
         ),
         Section(title: "Colors", entries: entries(for: AnnotationColor.allCases.map(OverlayCommand.selectColor))),
+        // Modifiers held while dragging, as in Figma and Preview; not keys in `OverlayKeyMap`.
+        Section(
+            title: "Drawing",
+            entries: [
+                Entry(action: "Square, circle, 45° line", keys: ["⇧ Drag"]),
+                Entry(action: "Shape from its center", keys: ["⌥ Drag"]),
+                Entry(action: "Resize in proportion", keys: ["⇧ Corner"]),
+            ]
+        ),
         // Typing happens in the text editor, not through `OverlayKeyMap`.
         Section(
             title: "Text",
