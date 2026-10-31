@@ -10,6 +10,12 @@ Pick the step by how big the change is for users:
 
 Each release's section becomes its GitHub release notes, so write it for users. Every pull request with user-facing changes adds its own `## [x.y.z] - YYYY-MM-DD` section, one step after the last release; merging it to `main` tags and publishes that version. Pull requests without user-facing changes add nothing and release nothing.
 
+## [1.2.1] - 2026-10-30
+
+### Fixed
+
+- Options in the style dropdowns now highlight as you point at them, like the toolbar buttons
+
 ## [1.2.0] - 2026-10-30
 
 ### Changed

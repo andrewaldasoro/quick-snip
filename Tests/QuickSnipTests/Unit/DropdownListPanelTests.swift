@@ -230,4 +230,35 @@ struct DropdownRowViewTests {
         row.isSelected = false
         #expect(label.textColor == .labelColor)
     }
+
+    /// Regression: hovering a row showed nothing, unlike the toolbar's buttons.
+    @Test func hoveringARowFillsItSoftlyAndLeavingClearsIt() throws {
+        let row = DropdownRowView(frame: CGRect(x: 0, y: 0, width: 140, height: 26))
+        #expect(try TestRendering.render(row, scale: 1).isBlankInTheMiddle)
+
+        row.mouseEntered(with: NSEvent())
+        let hovered = try TestRendering.render(row, scale: 1)
+        let fill = TestImages.pixel(hovered, x: 70, y: 13)
+        #expect(fill.a > 0)
+        #expect(fill.a < 128)  // soft, not the selection's solid accent
+        #expect(TestImages.pixel(hovered, x: 0, y: 1).a == 0)  // rounded corner
+
+        row.mouseExited(with: NSEvent())
+        #expect(try TestRendering.render(row, scale: 1).isBlankInTheMiddle)
+    }
+
+    @Test func theSelectionWinsOverHover() {
+        let row = DropdownRowView(frame: CGRect(x: 0, y: 0, width: 140, height: 26))
+        row.mouseEntered(with: NSEvent())
+        row.isSelected = true
+        #expect(row.isHovered)
+        row.prepareForReuse()
+        #expect(!row.isHovered)
+    }
+}
+
+extension CGImage {
+    fileprivate var isBlankInTheMiddle: Bool {
+        TestImages.pixel(self, x: width / 2, y: height / 2).a == 0
+    }
 }

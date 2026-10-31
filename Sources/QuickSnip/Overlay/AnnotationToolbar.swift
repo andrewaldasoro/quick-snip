@@ -241,6 +241,9 @@ final class ToolbarButton: NSButton {
     static let hoverDarkening: CGFloat = 0.12
     static let pressDarkening: CGFloat = 0.25
 
+    /// The soft fill under a control the pointer is over (glyph buttons, dropdown rows).
+    static let hoverFill = NSColor.labelColor.withAlphaComponent(0.08)
+
     /// The solid accent fill, darkened while hovered or pressed.
     static func accentFill(isHighlighted: Bool, isHovered: Bool) -> NSColor {
         let accent = NSColor.controlAccentColor
@@ -331,7 +334,7 @@ final class ToolbarButton: NSButton {
         guard isEnabled else { return nil }
         if state == .on { return Self.accentFill(isHighlighted: isHighlighted, isHovered: isHovered) }
         if isHighlighted { return .labelColor.withAlphaComponent(0.14) }
-        if isHovered { return .labelColor.withAlphaComponent(0.08) }
+        if isHovered { return Self.hoverFill }
         return nil
     }
 
