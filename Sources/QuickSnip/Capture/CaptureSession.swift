@@ -39,8 +39,20 @@ final class CaptureSession {
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
     private var resize: (original: Annotation, handle: AnnotationHandle)?
+    /// Text being typed in place, new or reopened; nil when not typing.
+    private(set) var textBeingTyped: TextEditRequest?
+
     /// The text annotation being edited in place; it's hidden meanwhile, so it isn't drawn twice.
-    private(set) var editingTextID: UUID?
+    var editingTextID: UUID? { textBeingTyped?.annotationID }
+
+    /// The style and placement of the text being typed, kept current as the style panel changes
+    /// it, so the open editor can follow.
+    var typing: (style: AnnotationStyle, placement: TextPlacement)? {
+        guard let request = textBeingTyped else { return nil }
+        guard let id = request.annotationID else { return (style, request.placement) }
+        guard let annotation = document.annotation(id), case .text(_, let origin, let boxWidth) = annotation.kind else { return nil }
+        return (annotation.style, TextPlacement(origin: origin, boxWidth: boxWidth))
+    }
     /// A drag with the text tool, which becomes a text box (or a click's single line).
     private var textBoxDrag: (start: CGPoint, end: CGPoint)?
     /// In-progress drawing, or the moved or resized copy of an annotation while dragging.
@@ -124,7 +136,7 @@ final class CaptureSession {
 
     /// The color the style panel shows: the selected annotation's, otherwise what's next drawn.
     var styleColor: AnnotationColor {
-        selectedAnnotation?.style.color ?? style.color
+        typing?.style.color ?? selectedAnnotation?.style.color ?? style.color
     }
 
     /// The handle of the selected annotation under `point`, while no tool is active.
@@ -136,6 +148,10 @@ final class CaptureSession {
     /// What the style panel shows: the selected annotation's style, otherwise what the active
     /// tool will draw with. Nil when there's neither, or for pixelate, which has no style.
     var styleOptions: StyleOptions? {
+        // The text being typed is hidden from the canvas, but its style is still what's shown.
+        if let typing {
+            return Self.options(for: .text("", origin: .zero), style: typing.style)
+        }
         if let selected = selectedAnnotation {
             return Self.options(for: selected.kind, style: selected.style)
         }
@@ -154,8 +170,10 @@ final class CaptureSession {
         }
     }
 
+    /// Looked up in the document, not among the visible annotations: text being edited is
+    /// hidden but still selected, and still restyled by the panel.
     private var selectedTextStyle: AnnotationStyle? {
-        guard let selected = selectedAnnotation, case .text = selected.kind else { return nil }
+        guard let id = selectedAnnotationID, let selected = document.annotation(id), case .text = selected.kind else { return nil }
         return selected.style
     }
 
@@ -277,7 +295,9 @@ final class CaptureSession {
             textBoxDrag = nil
             let end = clampToSelection(point)
             let placement = TextPlacement.from(drag: drag.start, to: end, minimumBoxWidth: TextLayout.minimumBoxWidth)
-            onRequestTextEntry?(id, .new(at: placement, style: style))
+            let request = TextEditRequest.new(at: placement, style: style)
+            textBeingTyped = request
+            onRequestTextEntry?(id, request)
         } else if let move {
             self.move = nil
             draft = nil
@@ -367,7 +387,7 @@ final class CaptureSession {
     /// Applies to new text and to the selected text; one-line text keeps its place on screen.
     func setAlignment(_ alignment: TextAlignment) {
         style.alignment = alignment
-        if let selected = selectedAnnotation, case .text = selected.kind {
+        if let id = selectedAnnotationID, let selected = document.annotation(id), case .text = selected.kind {
             document.update(selected.aligned(alignment), actionName: "Change Style")
         }
         notify()
@@ -383,7 +403,7 @@ final class CaptureSession {
     private func editText(_ annotation: Annotation, on id: CGDirectDisplayID) {
         guard let request = TextEditRequest.editing(annotation) else { return }
         move = nil
-        editingTextID = annotation.id
+        textBeingTyped = request
         selectedAnnotationID = annotation.id
         onRequestTextEntry?(id, request)
         notify()
@@ -392,11 +412,11 @@ final class CaptureSession {
     /// Typing in place ended: new text is added; edited text is updated in one undo step, or
     /// removed when it was emptied. Either way it ends up selected with the tool off.
     func finishText(_ text: String, for request: TextEditRequest, on id: CGDirectDisplayID) {
+        if textBeingTyped == request { textBeingTyped = nil }
         guard let annotationID = request.annotationID else {
             addText(text, at: request.placement, on: id)
             return
         }
-        editingTextID = nil
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             document.remove(annotationID)

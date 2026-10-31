@@ -103,6 +103,9 @@ final class SelectionOverlayView: NSView {
     /// Redraws and shows, hides, or repositions the toolbar and style panel.
     func sessionDidChange() {
         needsDisplay = true
+        if let entry = textEntry, let typing = session.typing {
+            entry.update(style: typing.style, placement: typing.placement)
+        }
 
         guard isActiveDisplay, let selection = session.selection(on: display.displayID), !session.isEditingSelection,
             !session.isShowingCheatsheet

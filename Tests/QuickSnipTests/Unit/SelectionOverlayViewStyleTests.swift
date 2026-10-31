@@ -339,6 +339,70 @@ struct SelectionOverlayViewStyleTests {
         #expect(harness.session.document.undoManager.undoActionName == "Edit Text")
     }
 
+    /// Regression: while typing new text, picking an alignment only showed once typing ended.
+    @Test func alignmentChangesTheTextBeingTyped() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
+        let editor = try #require(harness.view.textEditor)
+        editor.insertText("Typing", replacementRange: editor.selectedRange())
+        let panel = try #require(harness.view.stylePanel)
+
+        panel.alignmentButtons[.right]?.performClick(nil)
+
+        #expect(harness.view.textEditor === editor)  // still typing
+        #expect(editor.alignment == .right)
+        #expect(editor.frame.maxX == 300)  // right-aligned text ends at the click
+        #expect(panel.alignmentButtons[.right]?.state == .on)
+    }
+
+    @Test func colorAndSizeChangeTheTextBeingTyped() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
+        let editor = try #require(harness.view.textEditor)
+
+        harness.session.setColor(.blue)
+        harness.session.setFontSize(48)
+
+        #expect(editor.textColor == AnnotationColor.blue.nsColor)
+        #expect(editor.font == TextFont.system.font(size: 48))
+    }
+
+    /// Regression: re-editing text with a double-click hid the style panel, since the text
+    /// being edited is hidden from the canvas meanwhile.
+    @Test func reEditedTextKeepsItsStylePanel() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.setColor(.green)
+        harness.session.addText("Placed", at: .line(at: CGPoint(x: 300, y: 150)), on: 1)
+        let placed = try #require(harness.session.document.annotations.first)
+        harness.session.setColor(.red)  // restyles the selected text; set it back to green below
+
+        harness.session.mouseDown(on: 1, at: CGPoint(x: placed.bounds.midX, y: placed.bounds.midY), clickCount: 2)
+        harness.session.mouseUp(on: 1, at: CGPoint(x: placed.bounds.midX, y: placed.bounds.midY))
+        let panel = try #require(harness.view.stylePanel)
+        let editor = try #require(harness.view.textEditor)
+
+        #expect(!panel.isHidden)
+        #expect(Set(panel.buttons.keys) == [.color, .font, .fontSize])
+        #expect(harness.session.styleColor == .red)
+
+        panel.alignmentButtons[.center]?.performClick(nil)
+        harness.session.setColor(.green)
+
+        #expect(harness.view.textEditor === editor)
+        #expect(editor.alignment == .center)
+        #expect(editor.textColor == AnnotationColor.green.nsColor)
+        #expect(harness.session.document.annotations.first?.style.alignment == .center)
+        #expect(harness.session.document.annotations.first?.style.color == .green)
+
+        harness.view.commitTextEntry()
+        #expect(harness.session.document.annotations.first?.bounds == placed.bounds)  // realigned in place
+    }
+
     /// Choosing a font while typing ends the typing, then styles the text just placed; focus
     /// stays on the font list's search field.
     @Test func openingAStyleListWhileTypingPlacesTheTextFirst() async throws {

@@ -12,11 +12,16 @@ final class TextEntry {
 
     let editor = TextEditorView(frame: .zero)
     let request: TextEditRequest
+    /// Start from the request; the style panel can change them while typing.
+    private(set) var style: AnnotationStyle
+    private(set) var placement: TextPlacement
     private let onFinish: @MainActor (String) -> Void
     private var isFinished = false
 
     init(request: TextEditRequest, onFinish: @escaping @MainActor (String) -> Void) {
         self.request = request
+        style = request.style
+        placement = request.placement
         self.onFinish = onFinish
         configure()
         editor.string = request.text
@@ -25,20 +30,24 @@ final class TextEntry {
         layout()
     }
 
-    var isBox: Bool { request.placement.boxWidth != nil }
+    var isBox: Bool { placement.boxWidth != nil }
     var text: String { editor.string }
 
-    private var style: AnnotationStyle { request.style }
+    /// Follows the style panel while typing: the font, color and alignment change in place.
+    func update(style: AnnotationStyle, placement: TextPlacement) {
+        guard style != self.style || placement != self.placement else { return }
+        self.style = style
+        self.placement = placement
+        applyStyle()
+        layout()
+    }
 
     private func configure() {
         editor.isRichText = false
         editor.importsGraphics = false
         editor.allowsUndo = true
         editor.drawsBackground = false
-        editor.font = style.font.font(size: style.fontSize)
-        editor.textColor = style.color.nsColor
-        editor.insertionPointColor = style.color.nsColor
-        editor.alignment = style.alignment.nsAlignment
+        applyStyle()
         editor.textContainerInset = .zero
         editor.isVerticallyResizable = false
         editor.isHorizontallyResizable = false
@@ -51,12 +60,21 @@ final class TextEntry {
         editor.setAccessibilityLabel(isBox ? "Annotation text box" : "Annotation text")
     }
 
+    private func applyStyle() {
+        editor.font = style.font.font(size: style.fontSize)
+        editor.textColor = style.color.nsColor
+        editor.insertionPointColor = style.color.nsColor
+        editor.alignment = style.alignment.nsAlignment
+        // New text typed from here on takes the style too, not only what's already there.
+        editor.typingAttributes = TextLayout.attributed(" ", style: style).attributes(at: 0, effectiveRange: nil)
+    }
+
     /// Fits the editor to its text.
     func layout() {
         let lineHeight = TextLayout.lineHeight(style)
-        if let boxWidth = request.placement.boxWidth {
+        if let boxWidth = placement.boxWidth {
             // Width first: the text wraps to it, and the height comes from that wrapping.
-            editor.frame = CGRect(x: request.placement.origin.x, y: request.placement.origin.y, width: boxWidth, height: lineHeight)
+            editor.frame = CGRect(x: placement.origin.x, y: placement.origin.y, width: boxWidth, height: lineHeight)
             editor.setFrameSize(NSSize(width: boxWidth, height: max(lineHeight, boxHeight())))
             return
         }
@@ -65,7 +83,7 @@ final class TextEntry {
         let height = max(lineHeight, ceil(size.height) + (text.hasSuffix("\n") ? lineHeight : 0))
         let width = ceil(size.width) + Self.caretRoom
         let anchor = style.alignment.anchorFraction
-        editor.frame = CGRect(x: request.placement.origin.x - width * anchor, y: request.placement.origin.y, width: width, height: height)
+        editor.frame = CGRect(x: placement.origin.x - width * anchor, y: placement.origin.y, width: width, height: height)
     }
 
     /// The box's text as laid out, including the empty line after a trailing Return.
