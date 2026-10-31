@@ -65,6 +65,12 @@ final class AnnotationToolbar: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    /// Clicks no control takes (a disabled button, the padding) stay here; passed on, they'd
+    /// reach the capture behind and start moving or redrawing the selection.
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseDragged(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {}
+
     func update(tool: AnnotationTool?, canUndo: Bool, canRedo: Bool) {
         for (candidate, button) in toolButtons {
             button.state = candidate == tool ? .on : .off
@@ -241,6 +247,9 @@ final class ToolbarButton: NSButton {
     static let hoverDarkening: CGFloat = 0.12
     static let pressDarkening: CGFloat = 0.25
 
+    /// The soft fill under a control the pointer is over (glyph buttons, dropdown rows).
+    static let hoverFill = NSColor.labelColor.withAlphaComponent(0.08)
+
     /// The solid accent fill, darkened while hovered or pressed.
     static func accentFill(isHighlighted: Bool, isHovered: Bool) -> NSColor {
         let accent = NSColor.controlAccentColor
@@ -331,7 +340,7 @@ final class ToolbarButton: NSButton {
         guard isEnabled else { return nil }
         if state == .on { return Self.accentFill(isHighlighted: isHighlighted, isHovered: isHovered) }
         if isHighlighted { return .labelColor.withAlphaComponent(0.14) }
-        if isHovered { return .labelColor.withAlphaComponent(0.08) }
+        if isHovered { return Self.hoverFill }
         return nil
     }
 

@@ -147,16 +147,4 @@ struct Annotation: Identifiable, Equatable, Sendable {
     static func attributedText(_ string: String, style: AnnotationStyle) -> NSAttributedString {
         TextLayout.attributed(string, style: style)
     }
-
-    /// This annotation with `alignment`. One-line text keeps its place on screen: its origin
-    /// moves to the new anchor (start, middle or end).
-    @MainActor
-    func aligned(_ alignment: TextAlignment) -> Annotation {
-        var result = self
-        result.style.alignment = alignment
-        if case .text(let string, _, nil) = kind {
-            result.kind = .text(string, origin: TextLayout.origin(forLineFrame: bounds, alignment: alignment))
-        }
-        return result
-    }
 }

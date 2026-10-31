@@ -41,14 +41,19 @@ final class AnnotationDocument {
         replaceAll(annotations.filter { $0.id != id }, actionName: "Delete \(annotation.name)")
     }
 
+    /// The change notice sent while undoing comes before the undo manager has finished, when
+    /// it still reports the step as undoable; one more afterwards lets Undo and Redo show
+    /// what's actually left.
     func undo() {
         guard canUndo else { return }
         undoManager.undo()
+        onChange?()
     }
 
     func redo() {
         guard canRedo else { return }
         undoManager.redo()
+        onChange?()
     }
 
     private func replaceAll(_ new: [Annotation], actionName: String) {

@@ -20,7 +20,7 @@ final class SelectionOverlayView: NSView {
 
     private(set) var toolbar: AnnotationToolbar?
     private(set) var textEntry: TextEntry?
-    var textField: NSTextField? { textEntry?.field }
+    var textEditor: NSTextView? { textEntry?.editor }
     private let fontFamilies: FontFamilyProviding
     private(set) var stylePanel: StylePanel?
     /// The open style dropdown, if any.
@@ -103,6 +103,9 @@ final class SelectionOverlayView: NSView {
     /// Redraws and shows, hides, or repositions the toolbar and style panel.
     func sessionDidChange() {
         needsDisplay = true
+        if let entry = textEntry, let typing = session.typing {
+            entry.update(style: typing.style, placement: typing.placement)
+        }
 
         guard isActiveDisplay, let selection = session.selection(on: display.displayID), !session.isEditingSelection,
             !session.isShowingCheatsheet
@@ -181,12 +184,12 @@ final class SelectionOverlayView: NSView {
 
     /// Keeps keyboard shortcuts working after clicking a toolbar control.
     private func restoreFocus() {
-        if textField == nil { window?.makeFirstResponder(self) }
+        if textEditor == nil { window?.makeFirstResponder(self) }
     }
 
     /// Typing goes to a text field (annotation text, font search), not to shortcuts.
     private var isTyping: Bool {
-        textField != nil || window?.firstResponder is NSText
+        textEditor != nil || window?.firstResponder is NSText
     }
 
     // MARK: Dropdowns
@@ -388,40 +391,36 @@ final class SelectionOverlayView: NSView {
 
     // MARK: Text entry
 
-    func beginTextEntry(at placement: TextPlacement) {
+    func beginTextEntry(_ request: TextEditRequest) {
         commitTextEntry()
-        let entry = TextEntry(
-            placement: placement, style: session.style,
-            onCommit: { [weak self] text in self?.finishTextEntry(placing: text) },
-            onCancel: { [weak self] in self?.finishTextEntry(placing: nil) }
-        )
-        addSubview(entry.field)
+        let entry = TextEntry(request: request) { [weak self] text in self?.finishTextEntry(with: text) }
+        addSubview(entry.editor)
         textEntry = entry
-        window?.makeFirstResponder(entry.field)
+        window?.makeFirstResponder(entry.editor)
+        // Reopened text starts with its caret at the end, ready to add to it.
+        entry.editor.setSelectedRange(NSRange(location: (entry.text as NSString).length, length: 0))
     }
 
+    /// Ends typing and places the text (Esc, ⌘Return and clicks elsewhere end up here too).
     func commitTextEntry() {
-        textEntry?.commit()
+        textEntry?.finish()
     }
 
-    func cancelTextEntry() {
-        textEntry?.cancel()
-    }
-
-    private func finishTextEntry(placing text: String?) {
+    private func finishTextEntry(with text: String) {
         guard let entry = textEntry else { return }
         textEntry = nil
-        entry.field.removeFromSuperview()
-        window?.makeFirstResponder(self)
-        if let text {
-            session.addText(text, at: entry.placement, on: display.displayID)
-        }
+        // Only take focus back when the editor still has it (Esc, ⌘Return, a click on the
+        // overlay); when focus moved on (a dropdown's search field), leave it there.
+        let hadFocus = window?.firstResponder === entry.editor
+        entry.editor.removeFromSuperview()
+        if hadFocus { window?.makeFirstResponder(self) }
+        session.finishText(text, for: entry.request, on: display.displayID)
     }
 
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
-        if textField != nil {
+        if textEditor != nil {
             commitTextEntry()
             return
         }
@@ -430,7 +429,7 @@ final class SelectionOverlayView: NSView {
             closeDropdown()
             return
         }
-        session.mouseDown(on: display.displayID, at: localPoint(of: event))
+        session.mouseDown(on: display.displayID, at: localPoint(of: event), clickCount: event.clickCount)
         updateCursor(for: event)
     }
 

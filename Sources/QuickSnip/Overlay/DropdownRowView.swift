@@ -2,7 +2,8 @@ import AppKit
 
 /// A row in a dropdown list. The selection is a rounded rect, matching the dropdown's own
 /// corners, in the solid accent fill of the toolbar's "on" buttons; the row's text and line
-/// glyph switch to that fill's readable foreground (`ToolbarButton.accentForeground`).
+/// glyph switch to that fill's readable foreground (`ToolbarButton.accentForeground`). The row
+/// under the pointer gets the toolbar buttons' soft hover fill, same shape.
 final class DropdownRowView: NSTableRowView {
     static let cornerRadius: CGFloat = 6
     /// A hairline gap between rows, so neighboring highlights don't touch.
@@ -12,6 +13,32 @@ final class DropdownRowView: NSTableRowView {
         didSet { updateForeground() }
     }
 
+    private(set) var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+
+    /// Rows are reused as the list scrolls; a reused row starts unhovered.
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        isHovered = false
+    }
+
+    /// The hover fill; the selection draws over it in `drawSelection(in:)`.
+    override func drawBackground(in dirtyRect: NSRect) {
+        guard isHovered, !isSelected else { return }
+        ToolbarButton.hoverFill.setFill()
+        roundedShape.fill()
+    }
+
     override func didAddSubview(_ subview: NSView) {
         super.didAddSubview(subview)
         updateForeground()
@@ -19,8 +46,11 @@ final class DropdownRowView: NSTableRowView {
 
     override func drawSelection(in dirtyRect: NSRect) {
         ToolbarButton.accentFill(isHighlighted: false, isHovered: false).setFill()
-        let shape = bounds.insetBy(dx: 0, dy: Self.verticalInset)
-        NSBezierPath(roundedRect: shape, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+        roundedShape.fill()
+    }
+
+    private var roundedShape: NSBezierPath {
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 0, dy: Self.verticalInset), xRadius: Self.cornerRadius, yRadius: Self.cornerRadius)
     }
 
     /// Text and template glyphs (the line-width previews) follow the selection; color swatches

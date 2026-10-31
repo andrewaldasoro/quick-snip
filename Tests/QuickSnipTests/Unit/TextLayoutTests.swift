@@ -9,19 +9,14 @@ struct TextLayoutTests {
         AnnotationStyle(alignment: alignment)
     }
 
-    @Test(arguments: [(TextAlignment.left, CGFloat(0)), (.center, 0.5), (.right, 1)])
-    func oneLineSitsAroundItsOriginByAlignment(alignment: TextAlignment, fraction: CGFloat) {
-        let frame = TextLayout.frame("Hello", origin: CGPoint(x: 200, y: 50), boxWidth: nil, style: style(alignment))
-        #expect(abs(frame.minX - (200 - frame.width * fraction)) < 0.001)
-        #expect(frame.minY == 50)
-        #expect(frame.width > 0)
-    }
-
-    @Test func originForALineFrameIsItsAnchor() {
-        let frame = CGRect(x: 100, y: 20, width: 80, height: 30)
-        #expect(TextLayout.origin(forLineFrame: frame, alignment: .left) == CGPoint(x: 100, y: 20))
-        #expect(TextLayout.origin(forLineFrame: frame, alignment: .center) == CGPoint(x: 140, y: 20))
-        #expect(TextLayout.origin(forLineFrame: frame, alignment: .right) == CGPoint(x: 180, y: 20))
+    /// Click text's box starts at its origin whatever the alignment; alignment only lines the
+    /// lines up inside it.
+    @Test(arguments: TextAlignment.allCases)
+    func clickTextStartsAtItsOrigin(alignment: TextAlignment) {
+        let frame = TextLayout.frame("Hello\nlonger line", origin: CGPoint(x: 200, y: 50), boxWidth: nil, style: style(alignment))
+        let left = TextLayout.frame("Hello\nlonger line", origin: CGPoint(x: 200, y: 50), boxWidth: nil, style: style(.left))
+        #expect(frame == left)
+        #expect(frame.origin == CGPoint(x: 200, y: 50))
     }
 
     @Test func boxedTextKeepsTheBoxWidthAndWraps() {
@@ -31,6 +26,12 @@ struct TextLayoutTests {
         #expect(oneLine == CGRect(x: 10, y: 10, width: 100, height: oneLine.height))
         #expect(wrapped.width == 100)
         #expect(wrapped.height > oneLine.height * 2)
+    }
+
+    @Test func lineBreaksInABoxEachGetALine() {
+        let one = TextLayout.frame("One", origin: .zero, boxWidth: 200, style: .default)
+        let three = TextLayout.frame("One\nTwo\nThree", origin: .zero, boxWidth: 200, style: .default)
+        #expect(three.height >= one.height * 3 - 1)
     }
 
     @Test func anEmptyBoxIsStillOneLineTall() {

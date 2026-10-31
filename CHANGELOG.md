@@ -10,6 +10,21 @@ Pick the step by how big the change is for users:
 
 Each release's section becomes its GitHub release notes, so write it for users. Every pull request with user-facing changes adds its own `## [x.y.z] - YYYY-MM-DD` section, one step after the last release; merging it to `main` tags and publishes that version. Pull requests without user-facing changes add nothing and release nothing.
 
+## [1.3.0] - 2026-10-30
+
+### Changed
+
+- **Text editing works like Markup and Figma**: Return starts a new line, in a single line of text as well as in a box. Esc, ⌘Return or a click elsewhere finishes and keeps what you typed
+- **Edit text in place**: double-click text (or click it with the Text tool) to change it. Delete all of it to remove it; one undo puts it back
+- A click places text that grows as you type; a drag makes a box that wraps. Both grow downward, so the lines above never move
+
+### Fixed
+
+- Options in the style dropdowns now highlight as you point at them, like the toolbar buttons
+- Typing several lines in a text box no longer cuts them off
+- Undo turns off once there's nothing left to undo, and Redo once there's nothing left to redo
+- Clicking a turned-off button (or the space around the buttons) no longer moves the selection and hides the toolbar
+
 ## [1.2.0] - 2026-10-30
 
 ### Changed

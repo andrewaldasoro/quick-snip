@@ -1,8 +1,9 @@
 import AppKit
 
-/// Where a text annotation's text goes. Text in a box wraps to the box's width, with its
-/// origin at the box's top-left. Text placed with a click is one line; its origin is the
-/// click, which is the line's start, middle or end depending on the alignment.
+/// Where a text annotation's text goes. Its origin is always its box's top-left. Text in a
+/// dragged box wraps to the box's width; text placed with a click has a box as wide as its
+/// longest line, which grows right and down as it's typed. Alignment lines the lines up inside
+/// the box, so it never moves the box.
 @MainActor
 enum TextLayout {
     /// The narrowest box a drag makes; anything shorter counts as a click.
@@ -24,17 +25,12 @@ enum TextLayout {
         let text = attributed(string, style: style)
         guard let boxWidth else {
             let size = text.size()
-            return CGRect(x: origin.x - size.width * style.alignment.anchorFraction, y: origin.y, width: size.width, height: size.height)
+            return CGRect(origin: origin, size: size)
         }
         let height = text.boundingRect(
             with: CGSize(width: boxWidth, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading]
         ).height
         return CGRect(x: origin.x, y: origin.y, width: boxWidth, height: max(ceil(height), lineHeight(style)))
-    }
-
-    /// The origin that puts one-line text's frame at `frame` with `alignment`.
-    static func origin(forLineFrame frame: CGRect, alignment: TextAlignment) -> CGPoint {
-        CGPoint(x: frame.minX + frame.width * alignment.anchorFraction, y: frame.minY)
     }
 
     /// One empty line, so an empty box still has a height to show.

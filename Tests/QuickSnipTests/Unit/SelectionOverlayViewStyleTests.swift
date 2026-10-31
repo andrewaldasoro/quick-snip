@@ -255,13 +255,13 @@ struct SelectionOverlayViewStyleTests {
 
     @Test func aDraggedBoxOpensAWrappingField() throws {
         let harness = make()
-        harness.session.onRequestTextEntry = { [view = harness.view] _, placement in view.beginTextEntry(at: placement) }
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
         harness.session.toggleTool(.text)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 400, y: 160))
 
-        let field = try #require(harness.view.textField)
+        let editor = try #require(harness.view.textEditor)
         #expect(harness.view.textEntry?.isBox == true)
-        field.stringValue = "Boxed"
+        editor.string = "Boxed"
         harness.view.commitTextEntry()
 
         #expect(harness.session.document.annotations.first?.kind == .text("Boxed", origin: CGPoint(x: 200, y: 150), boxWidth: 200))
@@ -272,8 +272,8 @@ struct SelectionOverlayViewStyleTests {
     @Test func placingTextTurnsTheTextButtonOff() throws {
         let harness = make()
         harness.session.toggleTool(.text)
-        harness.view.beginTextEntry(at: .line(at: CGPoint(x: 200, y: 150)))
-        try #require(harness.view.textField).stringValue = "Done"
+        harness.view.beginTextEntry(.new(at: .line(at: CGPoint(x: 200, y: 150)), style: harness.session.style))
+        try #require(harness.view.textEditor).string = "Done"
 
         harness.view.commitTextEntry()
 
@@ -294,6 +294,67 @@ struct SelectionOverlayViewStyleTests {
         }
     }
 
+    /// Regression: after undoing the last change, Undo stayed enabled (and Redo disabled after
+    /// undoing): the toolbar refreshed while the undo was still running.
+    @Test func undoAndRedoButtonsFollowWhatsLeft() throws {
+        let harness = make()
+        harness.session.toggleTool(.rectangle)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
+        let toolbar = try #require(harness.view.toolbar)
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
+        #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
+
+        harness.session.undo()
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == false)
+        #expect(toolbar.commandButtons[.redo]?.isEnabled == true)
+
+        harness.session.redo()
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
+        #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
+    }
+
+    /// Clicks a point in the overlay the way AppKit does: the deepest view there gets it, and
+    /// a view that doesn't handle it (a disabled button) passes it up the responder chain.
+    private func click(_ harness: Harness, at point: CGPoint) throws {
+        let inWindow = harness.view.convert(point, to: nil)
+        let down = try #require(
+            NSEvent.mouseEvent(
+                with: .leftMouseDown, location: inWindow, modifierFlags: [], timestamp: 0, windowNumber: harness.window.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        let target = try #require(harness.view.hitTest(harness.view.convert(point, to: harness.view.superview)))
+        target.mouseDown(with: down)
+    }
+
+    /// Regression: clicking the disabled Undo button reached the capture behind the toolbar,
+    /// which started moving the selection: the toolbar vanished and the cursor became a fist.
+    @Test func clicksOnADisabledButtonStayInTheToolbar() throws {
+        let harness = make()
+        let selection = harness.session.activeSelection
+        let toolbar = try #require(harness.view.toolbar)
+        let undo = try #require(toolbar.commandButtons[.undo])
+        #expect(undo.isEnabled == false)
+
+        try click(harness, at: harness.view.convert(CGPoint(x: undo.bounds.midX, y: undo.bounds.midY), from: undo))
+
+        #expect(!harness.session.isEditingSelection)
+        #expect(harness.session.activeSelection == selection)
+        #expect(!toolbar.isHidden)
+    }
+
+    @Test(arguments: [true, false])
+    func clicksOnPanelPaddingStayInThePanel(onToolbar: Bool) throws {
+        let harness = make()
+        harness.session.toggleTool(.arrow)
+        let selection = harness.session.activeSelection
+        let panel: NSView = try #require(onToolbar ? harness.view.toolbar : harness.view.stylePanel)
+
+        try click(harness, at: CGPoint(x: panel.frame.minX + 3, y: panel.frame.midY))  // the rounded padding
+
+        #expect(!harness.session.isEditingSelection)
+        #expect(harness.session.activeSelection == selection)
+        #expect(harness.session.tool == .arrow)
+    }
+
     // MARK: Text entry
 
     @Test func textEntryUsesTheChosenFontAndSize() throws {
@@ -302,8 +363,139 @@ struct SelectionOverlayViewStyleTests {
         harness.session.setFont(.monospaced)
         harness.session.setFontSize(40)
 
-        harness.view.beginTextEntry(at: .line(at: CGPoint(x: 150, y: 150)))
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 150, y: 150), to: CGPoint(x: 150, y: 150))
 
-        #expect(try #require(harness.view.textField?.font) == TextFont.monospaced.font(size: 40))
+        #expect(try #require(harness.view.textEditor?.font) == TextFont.monospaced.font(size: 40))
+    }
+
+    /// The whole loop the user goes through: place text, type two lines, finish, double-click
+    /// it, change it, finish again.
+    @Test func doubleClickReopensTextToEditInPlace() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 200, y: 150))
+        let editor = try #require(harness.view.textEditor as? TextEditorView)
+        editor.insertText("Line one", replacementRange: editor.selectedRange())
+        editor.insertNewline(nil)
+        editor.insertText("Line two", replacementRange: editor.selectedRange())
+        editor.cancelOperation(nil)  // Esc keeps it
+        #expect(harness.view.textEditor == nil)
+        #expect(harness.session.document.annotations.first?.kind == .text("Line one\nLine two", origin: CGPoint(x: 200, y: 150)))
+        #expect(harness.window.firstResponder === harness.view)
+
+        harness.session.mouseDown(on: 1, at: CGPoint(x: 210, y: 160), clickCount: 2)
+        harness.session.mouseUp(on: 1, at: CGPoint(x: 210, y: 160))
+        let reopened = try #require(harness.view.textEditor)
+        #expect(reopened.string == "Line one\nLine two")
+        #expect(reopened.selectedRange() == NSRange(location: 17, length: 0))  // caret at the end
+        #expect(harness.session.visibleAnnotations.isEmpty)
+
+        reopened.insertText("!", replacementRange: reopened.selectedRange())
+        harness.view.commitTextEntry()
+
+        #expect(harness.session.document.annotations.count == 1)
+        #expect(harness.session.document.annotations.first?.kind == .text("Line one\nLine two!", origin: CGPoint(x: 200, y: 150)))
+        #expect(harness.session.document.undoManager.undoActionName == "Edit Text")
+    }
+
+    /// Regression: while typing new text, picking an alignment only showed once typing ended.
+    @Test func alignmentChangesTheTextBeingTyped() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
+        let editor = try #require(harness.view.textEditor)
+        editor.insertText("Typing", replacementRange: editor.selectedRange())
+        let panel = try #require(harness.view.stylePanel)
+
+        panel.alignmentButtons[.right]?.performClick(nil)
+
+        #expect(harness.view.textEditor === editor)  // still typing
+        #expect(editor.alignment == .right)
+        #expect(panel.alignmentButtons[.right]?.state == .on)
+    }
+
+    /// Regression: right alignment slid text being typed to the left. Click text is a box
+    /// anchored on its left edge: it only grows right and down, alignment lines the lines up
+    /// inside it, and the box it has when typing ends is the placed text's bounds.
+    @Test(arguments: TextAlignment.allCases)
+    func clickTextKeepsItsLeftEdgeWhateverTheAlignment(alignment: TextAlignment) throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
+        let editor = try #require(harness.view.textEditor)
+        editor.insertText("Typing", replacementRange: editor.selectedRange())
+
+        try #require(harness.view.stylePanel).alignmentButtons[alignment]?.performClick(nil)
+        #expect(editor.frame.minX == 300)  // realigning doesn't move it
+        editor.insertText(" a longer line", replacementRange: editor.selectedRange())
+        editor.insertNewline(nil)
+        editor.insertText("short", replacementRange: editor.selectedRange())
+        #expect(editor.frame.minX == 300)  // growing doesn't either
+        let typed = editor.frame
+
+        harness.view.commitTextEntry()
+        let placed = try #require(harness.session.document.annotations.first)
+        #expect(placed.bounds.minX == 300)
+        #expect(placed.bounds.minY == typed.minY)
+        #expect(abs(placed.bounds.width - (typed.width - TextEntry.caretRoom)) < 0.5)  // the same box
+        #expect(placed.style.alignment == alignment)
+    }
+
+    /// Regression: re-editing text with a double-click hid the style panel, since the text
+    /// being edited is hidden from the canvas meanwhile.
+    @Test func reEditedTextKeepsItsStylePanel() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.setColor(.green)
+        harness.session.addText("Placed", at: .line(at: CGPoint(x: 300, y: 150)), on: 1)
+        let placed = try #require(harness.session.document.annotations.first)
+        harness.session.setColor(.red)  // restyles the selected text; set it back to green below
+
+        harness.session.mouseDown(on: 1, at: CGPoint(x: placed.bounds.midX, y: placed.bounds.midY), clickCount: 2)
+        harness.session.mouseUp(on: 1, at: CGPoint(x: placed.bounds.midX, y: placed.bounds.midY))
+        let panel = try #require(harness.view.stylePanel)
+        let editor = try #require(harness.view.textEditor)
+
+        #expect(!panel.isHidden)
+        #expect(Set(panel.buttons.keys) == [.color, .font, .fontSize])
+        #expect(harness.session.styleColor == .red)
+
+        panel.alignmentButtons[.center]?.performClick(nil)
+        harness.session.setColor(.green)
+
+        #expect(harness.view.textEditor === editor)
+        #expect(editor.alignment == .center)
+        #expect(editor.textColor == AnnotationColor.green.nsColor)
+        #expect(harness.session.document.annotations.first?.style.alignment == .center)
+        #expect(harness.session.document.annotations.first?.style.color == .green)
+
+        harness.view.commitTextEntry()
+        #expect(harness.session.document.annotations.first?.bounds == placed.bounds)  // realigned in place
+    }
+
+    /// Choosing a font while typing ends the typing, then styles the text just placed; focus
+    /// stays on the font list's search field.
+    @Test func openingAStyleListWhileTypingPlacesTheTextFirst() async throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 200, y: 150))
+        let editor = try #require(harness.view.textEditor)
+        editor.insertText("Styled", replacementRange: editor.selectedRange())
+
+        harness.view.toggleDropdown(.font)
+        try await Task.sleep(for: .zero)
+
+        #expect(harness.view.textEditor == nil)
+        #expect(harness.session.document.annotations.count == 1)
+        let list = try #require(harness.view.dropdown?.panel)
+        #expect(harness.window.firstResponder === list.searchField?.currentEditor())
+        list.search("serif")
+        list.pickSelected()
+        #expect(harness.session.document.annotations.first?.style.font == .serif)
     }
 }

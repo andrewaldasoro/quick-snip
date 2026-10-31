@@ -1,101 +1,106 @@
 import AppKit
 
-/// Typing a text annotation in place, in the field `field` shown on the overlay: one line for a
-/// click (it grows from the click by the alignment), or a box of fixed width whose height grows
-/// as the text wraps. Return places a line; in a box it starts a new line, and a click
-/// elsewhere places it. Esc throws the text away.
+/// Typing a text annotation in place, in `editor` on the overlay: new text, or existing text
+/// reopened with a double-click. Click text is a box anchored on its left edge that grows right
+/// as its longest line does and only breaks lines at Return; box text wraps to the box's width. Both grow
+/// down a line at a time, so the lines above never move. The text is measured the way
+/// `TextLayout` draws it, so nothing jumps when typing ends.
 @MainActor
-final class TextEntry: NSObject, NSTextFieldDelegate {
-    /// Horizontal padding NSTextField adds before its text (line fragment padding).
-    static let fieldInset: CGFloat = 2
-    /// Room for the caret past the last character of a line.
-    static let caretRoom: CGFloat = 8
-    static let minimumLineWidth: CGFloat = 40
+final class TextEntry {
+    /// Room for the caret past the end of the longest line.
+    static let caretRoom: CGFloat = 2
 
-    let field = NSTextField(string: "")
-    let placement: TextPlacement
-    private let style: AnnotationStyle
-    private let onCommit: @MainActor (String) -> Void
-    private let onCancel: @MainActor () -> Void
+    let editor = TextEditorView(frame: .zero)
+    let request: TextEditRequest
+    /// Start from the request; the style panel can change them while typing.
+    private(set) var style: AnnotationStyle
+    private(set) var placement: TextPlacement
+    private let onFinish: @MainActor (String) -> Void
     private var isFinished = false
 
-    init(
-        placement: TextPlacement, style: AnnotationStyle, onCommit: @escaping @MainActor (String) -> Void,
-        onCancel: @escaping @MainActor () -> Void
-    ) {
-        self.placement = placement
-        self.style = style
-        self.onCommit = onCommit
-        self.onCancel = onCancel
-        super.init()
-        field.isBordered = false
-        field.isBezeled = false
-        field.drawsBackground = false
-        field.focusRingType = .none
-        field.font = style.font.font(size: style.fontSize)
-        field.textColor = style.color.nsColor
-        field.alignment = style.alignment.nsAlignment
-        field.delegate = self
-        field.target = self
-        field.action = #selector(fieldAction(_:))
-        field.cell?.isScrollable = !isBox
-        field.cell?.wraps = isBox
-        field.setAccessibilityLabel(isBox ? "Annotation text box" : "Annotation text")
+    init(request: TextEditRequest, onFinish: @escaping @MainActor (String) -> Void) {
+        self.request = request
+        style = request.style
+        placement = request.placement
+        self.onFinish = onFinish
+        configure()
+        editor.string = request.text
+        editor.onChange = { [weak self] in self?.layout() }
+        editor.onFinish = { [weak self] in self?.finish() }
         layout()
     }
 
     var isBox: Bool { placement.boxWidth != nil }
+    var text: String { editor.string }
 
-    /// Fits the field to its text: a line grows sideways around its anchor; a box grows down.
-    func layout() {
-        let lineHeight = TextLayout.lineHeight(style) + 2
-        if let boxWidth = placement.boxWidth {
-            let width = boxWidth + Self.fieldInset * 2
-            let needed = field.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height ?? 0
-            field.frame = CGRect(
-                x: placement.origin.x - Self.fieldInset, y: placement.origin.y, width: width, height: max(lineHeight, ceil(needed)))
-            return
-        }
-        let textWidth = field.attributedStringValue.size().width
-        let width = max(Self.minimumLineWidth, (textWidth + Self.fieldInset * 2 + Self.caretRoom).rounded(.up))
-        let x = placement.origin.x - Self.fieldInset - (width - Self.fieldInset * 2) * style.alignment.anchorFraction
-        field.frame = CGRect(x: x, y: placement.origin.y, width: width, height: lineHeight)
-    }
-
-    func commit() {
-        guard !isFinished else { return }
-        isFinished = true
-        onCommit(field.stringValue)
-    }
-
-    func cancel() {
-        guard !isFinished else { return }
-        isFinished = true
-        onCancel()
-    }
-
-    @objc private func fieldAction(_ sender: NSTextField) {
-        commit()
-    }
-
-    func controlTextDidChange(_ notification: Notification) {
+    /// Follows the style panel while typing: the font, color and alignment change in place.
+    func update(style: AnnotationStyle, placement: TextPlacement) {
+        guard style != self.style || placement != self.placement else { return }
+        self.style = style
+        self.placement = placement
+        applyStyle()
         layout()
     }
 
-    func controlTextDidEndEditing(_ notification: Notification) {
-        commit()
+    private func configure() {
+        editor.isRichText = false
+        editor.importsGraphics = false
+        editor.allowsUndo = true
+        editor.drawsBackground = false
+        applyStyle()
+        editor.textContainerInset = .zero
+        editor.isVerticallyResizable = false
+        editor.isHorizontallyResizable = false
+        editor.isAutomaticQuoteSubstitutionEnabled = false
+        editor.isAutomaticDashSubstitutionEnabled = false
+        editor.isAutomaticTextReplacementEnabled = false
+        // Text starts exactly at the placement, like the drawn annotation (no line padding).
+        editor.textContainer?.lineFragmentPadding = 0
+        // A box's text wraps to the box; click text's container is sized by `layout()`.
+        editor.textContainer?.widthTracksTextView = isBox
+        editor.setAccessibilityLabel(isBox ? "Annotation text box" : "Annotation text")
     }
 
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        switch commandSelector {
-        case #selector(NSResponder.cancelOperation(_:)):
-            cancel()
-            return true
-        case #selector(NSResponder.insertNewline(_:)) where isBox:
-            textView.insertNewlineIgnoringFieldEditor(nil)
-            return true
-        default:
-            return false
+    private func applyStyle() {
+        editor.font = style.font.font(size: style.fontSize)
+        editor.textColor = style.color.nsColor
+        editor.insertionPointColor = style.color.nsColor
+        editor.alignment = style.alignment.nsAlignment
+        // New text typed from here on takes the style too, not only what's already there.
+        editor.typingAttributes = TextLayout.attributed(" ", style: style).attributes(at: 0, effectiveRange: nil)
+    }
+
+    /// Fits the editor to its text.
+    func layout() {
+        let lineHeight = TextLayout.lineHeight(style)
+        if let boxWidth = placement.boxWidth {
+            // Width first: the text wraps to it, and the height comes from that wrapping.
+            editor.frame = CGRect(x: placement.origin.x, y: placement.origin.y, width: boxWidth, height: lineHeight)
+            editor.setFrameSize(NSSize(width: boxWidth, height: max(lineHeight, boxHeight())))
+            return
         }
+        // Click text: a box anchored on its left edge, as wide as the longest line, so it only
+        // grows right and down and alignment never moves it.
+        let size = TextLayout.attributed(text, style: style).size()
+        // A trailing Return opens an empty line that the string's size doesn't count yet.
+        let height = max(lineHeight, ceil(size.height) + (text.hasSuffix("\n") ? lineHeight : 0))
+        let textWidth = ceil(size.width)
+        // Lines align within the text's own width, as they're drawn once placed; the caret's
+        // extra room sits past it.
+        editor.textContainer?.containerSize = NSSize(width: max(textWidth, 1), height: .greatestFiniteMagnitude)
+        editor.frame = CGRect(x: placement.origin.x, y: placement.origin.y, width: textWidth + Self.caretRoom, height: height)
+    }
+
+    /// The box's text as laid out, including the empty line after a trailing Return.
+    private func boxHeight() -> CGFloat {
+        guard let layout = editor.layoutManager, let container = editor.textContainer else { return 0 }
+        layout.ensureLayout(for: container)
+        return ceil(layout.usedRect(for: container).height)
+    }
+
+    func finish() {
+        guard !isFinished else { return }
+        isFinished = true
+        onFinish(text)
     }
 }

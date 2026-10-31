@@ -63,6 +63,12 @@ final class StylePanel: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    /// Clicks no control takes (a disabled button, the padding) stay here; passed on, they'd
+    /// reach the capture behind and start moving or redrawing the selection.
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseDragged(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {}
+
     /// Shows `color` and the controls for `options`, marking `openList`'s dropdown as open.
     func update(options: StyleOptions, color: AnnotationColor, openList: StyleList?) {
         if !Self.isSameKind(options, self.options) { rebuild(for: options) }

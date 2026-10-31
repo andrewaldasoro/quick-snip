@@ -115,9 +115,15 @@ struct AnnotationDocumentTests {
         var changes = 0
         doc.onChange = { changes += 1 }
         doc.add(rect(0))
+        let afterAdd = changes
         doc.undo()
+        let afterUndo = changes
         doc.redo()
-        #expect(changes == 3)
+
+        // Each action notifies (undo and redo twice: during, and once finished).
+        #expect(afterAdd >= 1)
+        #expect(afterUndo > afterAdd)
+        #expect(changes > afterUndo)
     }
 
     @Test func actionNamesDescribeTheChange() {
@@ -127,5 +133,22 @@ struct AnnotationDocumentTests {
         #expect(doc.undoManager.undoActionName == "Add Arrow")
         doc.remove(a.id)
         #expect(doc.undoManager.undoActionName == "Delete Arrow")
+    }
+
+    /// Regression: the last notice of an undo came while it was still running, so whoever
+    /// listened saw `canUndo` still true after undoing the only change.
+    @Test func theLastChangeNoticeOfAnUndoSeesWhatsLeft() {
+        let document = AnnotationDocument()
+        var seen: [(canUndo: Bool, canRedo: Bool)] = []
+        document.add(Annotation(kind: .rectangle(CGRect(x: 0, y: 0, width: 10, height: 10)), style: .default))
+        document.onChange = { seen.append((document.canUndo, document.canRedo)) }
+
+        document.undo()
+        #expect(seen.last?.canUndo == false)
+        #expect(seen.last?.canRedo == true)
+
+        document.redo()
+        #expect(seen.last?.canUndo == true)
+        #expect(seen.last?.canRedo == false)
     }
 }
