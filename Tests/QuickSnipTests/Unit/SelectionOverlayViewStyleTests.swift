@@ -313,6 +313,48 @@ struct SelectionOverlayViewStyleTests {
         #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
     }
 
+    /// Clicks a point in the overlay the way AppKit does: the deepest view there gets it, and
+    /// a view that doesn't handle it (a disabled button) passes it up the responder chain.
+    private func click(_ harness: Harness, at point: CGPoint) throws {
+        let inWindow = harness.view.convert(point, to: nil)
+        let down = try #require(
+            NSEvent.mouseEvent(
+                with: .leftMouseDown, location: inWindow, modifierFlags: [], timestamp: 0, windowNumber: harness.window.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        let target = try #require(harness.view.hitTest(harness.view.convert(point, to: harness.view.superview)))
+        target.mouseDown(with: down)
+    }
+
+    /// Regression: clicking the disabled Undo button reached the capture behind the toolbar,
+    /// which started moving the selection: the toolbar vanished and the cursor became a fist.
+    @Test func clicksOnADisabledButtonStayInTheToolbar() throws {
+        let harness = make()
+        let selection = harness.session.activeSelection
+        let toolbar = try #require(harness.view.toolbar)
+        let undo = try #require(toolbar.commandButtons[.undo])
+        #expect(undo.isEnabled == false)
+
+        try click(harness, at: harness.view.convert(CGPoint(x: undo.bounds.midX, y: undo.bounds.midY), from: undo))
+
+        #expect(!harness.session.isEditingSelection)
+        #expect(harness.session.activeSelection == selection)
+        #expect(!toolbar.isHidden)
+    }
+
+    @Test(arguments: [true, false])
+    func clicksOnPanelPaddingStayInThePanel(onToolbar: Bool) throws {
+        let harness = make()
+        harness.session.toggleTool(.arrow)
+        let selection = harness.session.activeSelection
+        let panel: NSView = try #require(onToolbar ? harness.view.toolbar : harness.view.stylePanel)
+
+        try click(harness, at: CGPoint(x: panel.frame.minX + 3, y: panel.frame.midY))  // the rounded padding
+
+        #expect(!harness.session.isEditingSelection)
+        #expect(harness.session.activeSelection == selection)
+        #expect(harness.session.tool == .arrow)
+    }
+
     // MARK: Text entry
 
     @Test func textEntryUsesTheChosenFontAndSize() throws {

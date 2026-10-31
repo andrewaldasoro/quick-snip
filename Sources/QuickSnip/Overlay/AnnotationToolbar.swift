@@ -65,6 +65,12 @@ final class AnnotationToolbar: NSView {
         fatalError("init(coder:) is not supported")
     }
 
+    /// Clicks no control takes (a disabled button, the padding) stay here; passed on, they'd
+    /// reach the capture behind and start moving or redrawing the selection.
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseDragged(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {}
+
     func update(tool: AnnotationTool?, canUndo: Bool, canRedo: Bool) {
         for (candidate, button) in toolButtons {
             button.state = candidate == tool ? .on : .off
