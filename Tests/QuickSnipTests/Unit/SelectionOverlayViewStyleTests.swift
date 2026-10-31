@@ -353,8 +353,41 @@ struct SelectionOverlayViewStyleTests {
 
         #expect(harness.view.textEditor === editor)  // still typing
         #expect(editor.alignment == .right)
-        #expect(editor.frame.maxX == 300)  // right-aligned text ends at the click
         #expect(panel.alignmentButtons[.right]?.state == .on)
+    }
+
+    /// Regression: realigning text while typing slid it left (centered on, or ending at, the
+    /// click). It stays put, as placed text does, and grows from its new anchor from then on.
+    @Test(arguments: [TextAlignment.center, .right])
+    func realigningTextBeingTypedKeepsItInPlace(alignment: TextAlignment) throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
+        let editor = try #require(harness.view.textEditor)
+        editor.insertText("Typing", replacementRange: editor.selectedRange())
+        // The text itself: the editor is a caret's width wider, on the side the text grows.
+        func textFrame() -> CGRect {
+            let caret = TextEntry.caretRoom
+            let fraction = harness.session.style.alignment.anchorFraction
+            return CGRect(
+                x: editor.frame.minX + caret * fraction, y: editor.frame.minY, width: editor.frame.width - caret,
+                height: editor.frame.height)
+        }
+        let before = textFrame()
+
+        try #require(harness.view.stylePanel).alignmentButtons[alignment]?.performClick(nil)
+
+        #expect(textFrame() == before)  // nothing slides
+        editor.insertText(" more", replacementRange: editor.selectedRange())
+        let anchor = before.minX + before.width * alignment.anchorFraction
+        let grown = textFrame()
+        #expect(abs(grown.minX + grown.width * alignment.anchorFraction - anchor) < 0.5)  // grows around the new anchor
+
+        harness.view.commitTextEntry()
+        let placed = try #require(harness.session.document.annotations.first)
+        #expect(abs(placed.bounds.minX - grown.minX) < 0.5)  // lands where it was typed
+        #expect(placed.style.alignment == alignment)
     }
 
     @Test func colorAndSizeChangeTheTextBeingTyped() throws {

@@ -36,6 +36,15 @@ final class TextEntry {
     /// Follows the style panel while typing: the font, color and alignment change in place.
     func update(style: AnnotationStyle, placement: TextPlacement) {
         guard style != self.style || placement != self.placement else { return }
+        var placement = placement
+        // New one-line text realigned while typing stays where it is, like placed text does
+        // (`Annotation.aligned`): the anchor moves under the text instead of the text sliding
+        // to the click. Reopened text arrives already re-anchored by the session.
+        if style.alignment != self.style.alignment, placement == self.placement, !isBox {
+            let textMinX = editor.frame.minX + Self.caretRoom * self.style.alignment.anchorFraction
+            let textWidth = editor.frame.width - Self.caretRoom
+            placement = .line(at: CGPoint(x: textMinX + textWidth * style.alignment.anchorFraction, y: placement.origin.y))
+        }
         self.style = style
         self.placement = placement
         applyStyle()

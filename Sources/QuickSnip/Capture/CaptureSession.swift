@@ -411,10 +411,12 @@ final class CaptureSession {
 
     /// Typing in place ended: new text is added; edited text is updated in one undo step, or
     /// removed when it was emptied. Either way it ends up selected with the tool off.
-    func finishText(_ text: String, for request: TextEditRequest, on id: CGDirectDisplayID) {
+    /// `placement` is where new text ended up while typing (realigning moves its anchor);
+    /// edited text keeps its own.
+    func finishText(_ text: String, for request: TextEditRequest, placement: TextPlacement? = nil, on id: CGDirectDisplayID) {
         if textBeingTyped == request { textBeingTyped = nil }
         guard let annotationID = request.annotationID else {
-            addText(text, at: request.placement, on: id)
+            addText(text, at: placement ?? request.placement, on: id)
             return
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

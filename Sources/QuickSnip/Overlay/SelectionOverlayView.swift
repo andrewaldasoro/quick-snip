@@ -414,7 +414,7 @@ final class SelectionOverlayView: NSView {
         let hadFocus = window?.firstResponder === entry.editor
         entry.editor.removeFromSuperview()
         if hadFocus { window?.makeFirstResponder(self) }
-        session.finishText(text, for: entry.request, on: display.displayID)
+        session.finishText(text, for: entry.request, placement: entry.placement, on: display.displayID)
     }
 
     // MARK: Mouse
