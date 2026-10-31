@@ -51,15 +51,25 @@ final class TextEntry: NSObject, NSTextFieldDelegate {
         let lineHeight = TextLayout.lineHeight(style) + 2
         if let boxWidth = placement.boxWidth {
             let width = boxWidth + Self.fieldInset * 2
-            let needed = field.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height ?? 0
-            field.frame = CGRect(
-                x: placement.origin.x - Self.fieldInset, y: placement.origin.y, width: width, height: max(lineHeight, ceil(needed)))
+            let height = max(lineHeight, ceil(boxTextHeight(width: width)))
+            field.frame = CGRect(x: placement.origin.x - Self.fieldInset, y: placement.origin.y, width: width, height: height)
             return
         }
         let textWidth = field.attributedStringValue.size().width
         let width = max(Self.minimumLineWidth, (textWidth + Self.fieldInset * 2 + Self.caretRoom).rounded(.up))
         let x = placement.origin.x - Self.fieldInset - (width - Self.fieldInset * 2) * style.alignment.anchorFraction
         field.frame = CGRect(x: x, y: placement.origin.y, width: width, height: lineHeight)
+    }
+
+    /// While typing, the field editor's layout is the truth: it counts the empty line after a
+    /// trailing Return, which the cell's own measurement leaves out (so the box stayed a line
+    /// short and the editor scrolled the first line away).
+    private func boxTextHeight(width: CGFloat) -> CGFloat {
+        if let editor = field.currentEditor() as? NSTextView, let layout = editor.layoutManager, let container = editor.textContainer {
+            layout.ensureLayout(for: container)
+            return layout.usedRect(for: container).height + editor.textContainerInset.height * 2 + 2
+        }
+        return field.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height ?? 0
     }
 
     func commit() {

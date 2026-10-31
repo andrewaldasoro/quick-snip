@@ -33,6 +33,12 @@ struct TextLayoutTests {
         #expect(wrapped.height > oneLine.height * 2)
     }
 
+    @Test func lineBreaksInABoxEachGetALine() {
+        let one = TextLayout.frame("One", origin: .zero, boxWidth: 200, style: .default)
+        let three = TextLayout.frame("One\nTwo\nThree", origin: .zero, boxWidth: 200, style: .default)
+        #expect(three.height >= one.height * 3 - 1)
+    }
+
     @Test func anEmptyBoxIsStillOneLineTall() {
         let frame = TextLayout.frame("", origin: .zero, boxWidth: 100, style: .default)
         #expect(frame.height == TextLayout.lineHeight(.default))

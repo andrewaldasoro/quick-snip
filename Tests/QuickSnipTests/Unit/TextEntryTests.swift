@@ -91,3 +91,55 @@ struct TextEntryTests {
         #expect(!command(entry, #selector(NSResponder.moveLeft(_:))))
     }
 }
+
+/// Typing in a box on a real window, through the field editor, as the user does.
+@MainActor
+struct TextEntryEditingTests {
+    private func editingBox() throws -> (TextEntry, NSTextView, NSWindow) {
+        let entry = TextEntry(
+            placement: TextPlacement(origin: CGPoint(x: 20, y: 20), boxWidth: 200), style: .default, onCommit: { _ in }, onCancel: {})
+        let host = FlippedView(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
+        let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: true)
+        window.contentView = host
+        host.addSubview(entry.field)
+        #expect(window.makeFirstResponder(entry.field))
+        let editor = try #require(entry.field.currentEditor() as? NSTextView)
+        return (entry, editor, window)
+    }
+
+    private func type(_ text: String, into editor: NSTextView, _ entry: TextEntry) {
+        editor.insertText(text, replacementRange: editor.selectedRange())
+        entry.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    }
+
+    private func newline(_ editor: NSTextView, _ entry: TextEntry) {
+        _ = entry.control(entry.field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:)))
+        entry.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    }
+
+    /// Regression: after Return the field stayed one line short, so the editor scrolled the
+    /// first line up and clipped the text.
+    @Test func returnGrowsTheBoxALineWithoutMovingTheFirstLine() throws {
+        let (entry, editor, _) = try editingBox()
+        type("One", into: editor, entry)
+        let oneLine = entry.field.frame.height
+        let resting = editor.visibleRect.minY  // the field editor's own inset, not a scroll
+
+        newline(editor, entry)
+
+        #expect(entry.field.frame.height >= oneLine + TextLayout.lineHeight(.default) - 1)
+        #expect(entry.field.frame.minY == 20)
+        #expect(editor.visibleRect.minY == resting)  // not scrolled: line one stays where it was
+
+        type("Two", into: editor, entry)
+        newline(editor, entry)
+        type("Three", into: editor, entry)
+        #expect(entry.field.frame.height >= TextLayout.lineHeight(.default) * 3)
+        #expect(editor.visibleRect.minY == resting)
+        #expect(entry.field.stringValue == "One\nTwo\nThree")
+    }
+}
+
+private final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
+}

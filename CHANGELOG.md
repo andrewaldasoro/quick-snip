@@ -15,6 +15,7 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 ### Fixed
 
 - Options in the style dropdowns now highlight as you point at them, like the toolbar buttons
+- Typing several lines in a text box no longer cuts them off: Return adds a line below and the box grows, without moving the lines already there
 
 ## [1.2.0] - 2026-10-30
 
