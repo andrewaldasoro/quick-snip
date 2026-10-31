@@ -4,6 +4,8 @@ import Sparkle
 @MainActor
 protocol UpdateChecking: AnyObject {
     var automaticallyChecksForUpdates: Bool { get set }
+    /// Called after each check: the newer version and its HTML notes, or nil when up to date.
+    var onCheckFinished: (@MainActor (_ update: (version: String, notesHTML: String?)?) -> Void)? { get set }
     func checkForUpdates()
 }
 
@@ -11,7 +13,17 @@ protocol UpdateChecking: AnyObject {
 /// `SUEnableAutomaticChecks`, Sparkle asks on the second launch before checking on its own.
 @MainActor
 final class SparkleUpdater: UpdateChecking {
-    private let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    private let observer = SparkleCheckObserver()
+    private lazy var controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: observer, userDriverDelegate: nil)
+
+    var onCheckFinished: (@MainActor (_ update: (version: String, notesHTML: String?)?) -> Void)? {
+        get { observer.onCheckFinished }
+        set { observer.onCheckFinished = newValue }
+    }
+
+    init() {
+        _ = controller  // Starts the updater and its scheduled checks.
+    }
 
     var automaticallyChecksForUpdates: Bool {
         get { controller.updater.automaticallyChecksForUpdates }
@@ -20,5 +32,19 @@ final class SparkleUpdater: UpdateChecking {
 
     func checkForUpdates() {
         controller.checkForUpdates(nil)
+    }
+}
+
+/// Forwards Sparkle's check results. Sparkle calls its delegate on the main thread.
+private final class SparkleCheckObserver: NSObject, SPUUpdaterDelegate {
+    @MainActor var onCheckFinished: (@MainActor (_ update: (version: String, notesHTML: String?)?) -> Void)?
+
+    nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        let update = (version: item.displayVersionString, notesHTML: item.itemDescription)
+        MainActor.assumeIsolated { onCheckFinished?(update) }
+    }
+
+    nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        MainActor.assumeIsolated { onCheckFinished?(nil) }
     }
 }

@@ -34,6 +34,9 @@ else
     curl -fsSL "$FEED_URL" -o "$work/appcast.xml" || rm -f "$work/appcast.xml"
 fi
 cp dist/QuickSnip.zip "$work/"
+# Release notes next to the archive, same name: generate_appcast embeds a body-less HTML
+# file in the item's description. Sparkle's window and Settings › What's New show it.
+./scripts/release-notes.sh "$VERSION" | python3 scripts/notes-html.py >"$work/QuickSnip.html"
 
 with_key "$BIN/generate_appcast" \
     --download-url-prefix "$REPO_URL/releases/download/v$VERSION/" \
@@ -47,6 +50,7 @@ with_key "$BIN/sign_update" --verify "$work/appcast.xml"
 signature="$(grep -o 'sparkle:edSignature="[^"]*"' "$work/appcast.xml" | head -1 | cut -d'"' -f2)"
 with_key "$BIN/sign_update" --verify "$work/QuickSnip.zip" "$signature"
 grep -q "<sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>" "$work/appcast.xml" || { echo "appcast has no $VERSION entry" >&2; exit 1; }
+grep -q "<description>" "$work/appcast.xml" || { echo "appcast has no release notes" >&2; exit 1; }
 
 rm -rf "$SITE"
 cp -R site "$SITE"

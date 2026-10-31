@@ -29,4 +29,47 @@ struct UpdatesModelTests {
         #expect(activation.activateCount == 1)
         #expect(updater.checkCount == 1)
     }
+
+    @Test func aFoundUpdateShowsTheCardWithItsNotes() {
+        let updater = FakeUpdater()
+        let model = UpdatesModel(updater: updater, activation: SpyAppActivation())
+        #expect(!model.showsUpdateCard)
+
+        updater.onCheckFinished?((version: "1.1.0", notesHTML: "<ul><li>Fonts</li></ul>"))
+
+        #expect(model.availableUpdate == AvailableUpdate(version: "1.1.0", notes: [.init(title: "", items: ["Fonts"])]))
+        #expect(model.showsUpdateCard)
+    }
+
+    @Test func anUpdateWithoutNotesHasNoLines() {
+        let updater = FakeUpdater()
+        let model = UpdatesModel(updater: updater, activation: SpyAppActivation())
+        updater.onCheckFinished?((version: "1.1.0", notesHTML: nil))
+        #expect(model.availableUpdate?.notes.isEmpty == true)
+    }
+
+    @Test func dismissingHidesTheCardUntilANewerVersion() {
+        let updater = FakeUpdater()
+        let model = UpdatesModel(updater: updater, activation: SpyAppActivation())
+        updater.onCheckFinished?((version: "1.1.0", notesHTML: nil))
+
+        model.dismissUpdateCard()
+        #expect(!model.showsUpdateCard)
+        updater.onCheckFinished?((version: "1.1.0", notesHTML: nil))
+        #expect(!model.showsUpdateCard)
+
+        updater.onCheckFinished?((version: "1.2.0", notesHTML: nil))
+        #expect(model.showsUpdateCard)
+    }
+
+    @Test func upToDateClearsTheUpdate() {
+        let updater = FakeUpdater()
+        let model = UpdatesModel(updater: updater, activation: SpyAppActivation())
+        updater.onCheckFinished?((version: "1.1.0", notesHTML: nil))
+
+        updater.onCheckFinished?(nil)
+
+        #expect(model.availableUpdate == nil)
+        #expect(!model.showsUpdateCard)
+    }
 }

@@ -31,6 +31,8 @@ for bundle in "$BIN_DIR"/*.bundle; do
 done
 # Third-party license notices (MIT requires shipping them); the About panel shows Credits.html.
 python3 scripts/dependencies.py credits "$APP/Contents/Resources/Credits.html"
+# Settings › What's New reads the release notes from here.
+cp CHANGELOG.md "$APP/Contents/Resources/CHANGELOG.md"
 
 # Sparkle (updates). ditto keeps the framework's symlinks. The XPC services are only for
 # sandboxed apps and the headers only for building, so they're dropped.
