@@ -294,6 +294,25 @@ struct SelectionOverlayViewStyleTests {
         }
     }
 
+    /// Regression: after undoing the last change, Undo stayed enabled (and Redo disabled after
+    /// undoing): the toolbar refreshed while the undo was still running.
+    @Test func undoAndRedoButtonsFollowWhatsLeft() throws {
+        let harness = make()
+        harness.session.toggleTool(.rectangle)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
+        let toolbar = try #require(harness.view.toolbar)
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
+        #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
+
+        harness.session.undo()
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == false)
+        #expect(toolbar.commandButtons[.redo]?.isEnabled == true)
+
+        harness.session.redo()
+        #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
+        #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
+    }
+
     // MARK: Text entry
 
     @Test func textEntryUsesTheChosenFontAndSize() throws {

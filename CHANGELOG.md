@@ -22,6 +22,7 @@ Each release's section becomes its GitHub release notes, so write it for users. 
 
 - Options in the style dropdowns now highlight as you point at them, like the toolbar buttons
 - Typing several lines in a text box no longer cuts them off
+- Undo turns off once there's nothing left to undo, and Redo once there's nothing left to redo
 
 ## [1.2.0] - 2026-10-30
 
