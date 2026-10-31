@@ -26,7 +26,7 @@ enum OverlayKeyMap {
 
     /// In toolbar order.
     static let toolBindings: [KeyBinding] = [
-        (AnnotationTool.rectangle, "r"), (.arrow, "a"), (.line, "l"), (.pen, "p"), (.marker, "m"), (.text, "t"), (.pixelate, "x"),
+        (AnnotationTool.shape, "r"), (.arrow, "a"), (.pen, "p"), (.marker, "m"), (.text, "t"), (.pixelate, "x"),
     ].map { tool, key in KeyBinding(.character(key), .selectTool(tool)) }
 
     /// 1–8, in toolbar order.

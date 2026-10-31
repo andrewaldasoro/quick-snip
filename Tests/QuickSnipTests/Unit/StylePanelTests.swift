@@ -8,6 +8,8 @@ struct StylePanelTests {
     private final class Recorder {
         var opened: [StyleList] = []
         var alignments: [TextAlignment] = []
+        var shapes: [ShapeKind] = []
+        var arrowHeads: [ArrowHeads] = []
     }
 
     private let text = StyleOptions.text(font: .serif, size: 36, alignment: .center)
@@ -17,7 +19,9 @@ struct StylePanelTests {
         let panel = StylePanel(
             actions: .init(
                 openList: { recorder.opened.append($0) },
-                selectAlignment: { recorder.alignments.append($0) }
+                selectAlignment: { recorder.alignments.append($0) },
+                selectShape: { recorder.shapes.append($0) },
+                selectArrowHeads: { recorder.arrowHeads.append($0) }
             ))
         return (panel, recorder)
     }
@@ -37,6 +41,39 @@ struct StylePanelTests {
         #expect(Set(panel.buttons.keys) == [.color, .lineWidth])
         #expect(panel.buttons[.lineWidth]?.title == "6 px")
         #expect(panel.alignmentButtons.isEmpty)
+    }
+
+    @Test func shapesGetWidthAndRectangleOrOval() {
+        let (panel, recorder) = make()
+        panel.update(options: .shape(.oval, lineWidth: 3), color: .red, openList: nil)
+        #expect(Set(panel.buttons.keys) == [.color, .lineWidth])
+        #expect(panel.buttons[.lineWidth]?.title == "3 px")
+        #expect(panel.shapeButtons[.oval]?.state == .on)
+        #expect(panel.shapeButtons[.rectangle]?.state == .off)
+        #expect(panel.arrowHeadButtons.isEmpty)
+
+        panel.shapeButtons[.rectangle]?.performClick(nil)
+        #expect(recorder.shapes == [.rectangle])
+    }
+
+    @Test func arrowsGetWidthAndHeads() {
+        let (panel, recorder) = make()
+        panel.update(options: .arrow(.both, lineWidth: 6), color: .red, openList: nil)
+        #expect(panel.buttons[.lineWidth]?.title == "6 px")
+        #expect(Set(panel.arrowHeadButtons.keys) == Set(ArrowHeads.allCases))
+        #expect(panel.arrowHeadButtons[.both]?.state == .on)
+        #expect(panel.shapeButtons.isEmpty)
+
+        panel.arrowHeadButtons[.none]?.performClick(nil)
+        #expect(recorder.arrowHeads == [.none])
+    }
+
+    @Test func switchingFromShapeToArrowSwapsTheButtons() {
+        let (panel, _) = make()
+        panel.update(options: .shape(.rectangle, lineWidth: 4), color: .red, openList: nil)
+        panel.update(options: .arrow(.end, lineWidth: 4), color: .red, openList: nil)
+        #expect(panel.shapeButtons.isEmpty)
+        #expect(panel.arrowHeadButtons[.end]?.state == .on)
     }
 
     @Test func textGetsFontSizeAndAlignment() {

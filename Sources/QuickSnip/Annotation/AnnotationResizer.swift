@@ -2,19 +2,22 @@ import CoreGraphics
 
 /// Handle positions and resize math for one annotation, in display-local points.
 ///
-/// Rectangles and pixelate get all eight frame handles, lines and arrows one per end, and
+/// Shapes and pixelate get all eight frame handles, lines and arrows one per end, and
 /// freehand strokes the four corners of their points' bounding box (scaled as a whole), and
 /// one-line text the four corners of its frame (scaling the font size, the opposite corner
 /// staying put), and boxed text its left and right edges (the box's width; text rewraps).
+///
+/// With Shift (`DrawModifiers.isConstrained`), a shape's corner keeps its proportions and an
+/// arrow's end snaps to 45° around the other end, as in Figma and Preview.
 @MainActor
 enum AnnotationResizer {
     static let hitTolerance = SelectionEditor.hitTolerance
 
     static func handles(for annotation: Annotation) -> [(handle: AnnotationHandle, point: CGPoint)] {
         switch annotation.kind {
-        case .rectangle(let rect), .pixelate(let rect):
+        case .shape(let rect), .pixelate(let rect):
             return SelectionHandle.allCases.map { (.frame($0), $0.point(in: rect)) }
-        case .line(let from, let to), .arrow(let from, let to):
+        case .arrow(let from, let to):
             return [(.start, from), (.end, to)]
         case .pen(let points), .marker(let points):
             return cornerHandles(of: Geometry.boundingRect(of: points))
@@ -40,18 +43,22 @@ enum AnnotationResizer {
 
     /// `original` with `handle` dragged to `point`, or nil when that would collapse it below
     /// `AnnotationBuilder.minimumSize` (the caller keeps the last valid shape).
-    static func resized(_ original: Annotation, dragging handle: AnnotationHandle, to point: CGPoint) -> Annotation? {
+    static func resized(
+        _ original: Annotation, dragging handle: AnnotationHandle, to point: CGPoint, modifiers: DrawModifiers = .none
+    ) -> Annotation? {
         var result = original
         switch (original.kind, handle) {
-        case (.rectangle(let rect), .frame(let frame)):
-            guard let new = resizedRect(rect, frame, to: point) else { return nil }
-            result.kind = .rectangle(new)
+        case (.shape(let rect), .frame(let frame)):
+            let keepsProportions = modifiers.isConstrained && frame.isCorner
+            guard let new = keepsProportions ? proportionalRect(rect, frame, to: point) : resizedRect(rect, frame, to: point)
+            else { return nil }
+            result.kind = .shape(new)
         case (.pixelate(let rect), .frame(let frame)):
             guard let new = resizedRect(rect, frame, to: point) else { return nil }
             result.kind = .pixelate(new)
-        case (.line(let from, let to), _), (.arrow(let from, let to), _):
-            guard let (newFrom, newTo) = movedEnd(from: from, to: to, handle, to: point) else { return nil }
-            result.kind = isArrow(original) ? .arrow(from: newFrom, to: newTo) : .line(from: newFrom, to: newTo)
+        case (.arrow(let from, let to), _):
+            guard let (newFrom, newTo) = movedEnd(from: from, to: to, handle, to: point, snaps: modifiers.isConstrained) else { return nil }
+            result.kind = .arrow(from: newFrom, to: newTo)
         case (.pen(let points), .frame(let frame)):
             guard let new = scaled(points, frame, to: point) else { return nil }
             result.kind = .pen(new)
@@ -120,13 +127,22 @@ enum AnnotationResizer {
         return new.width >= minimum && new.height >= minimum ? new : nil
     }
 
+    /// The corner follows the drag along the shape's own proportions, the opposite corner
+    /// staying put.
+    private static func proportionalRect(_ rect: CGRect, _ handle: SelectionHandle, to point: CGPoint) -> CGRect? {
+        let anchor = opposite(of: handle).point(in: rect)
+        let new = Geometry.proportionalRect(from: anchor, to: point, aspect: rect.size)
+        let minimum = AnnotationBuilder.minimumSize
+        return new.width >= minimum && new.height >= minimum ? new : nil
+    }
+
     private static func movedEnd(
-        from: CGPoint, to: CGPoint, _ handle: AnnotationHandle, to point: CGPoint
+        from: CGPoint, to: CGPoint, _ handle: AnnotationHandle, to point: CGPoint, snaps: Bool
     ) -> (CGPoint, CGPoint)? {
         let ends: (CGPoint, CGPoint)
         switch handle {
-        case .start: ends = (point, to)
-        case .end: ends = (from, point)
+        case .start: ends = (snaps ? Geometry.snapped(point, from: to) : point, to)
+        case .end: ends = (from, snaps ? Geometry.snapped(point, from: from) : point)
         case .frame: return nil
         }
         return Geometry.distance(ends.0, ends.1) >= AnnotationBuilder.minimumSize ? ends : nil
@@ -147,10 +163,5 @@ enum AnnotationResizer {
                 y: scalesY ? new.minY + (p.y - box.minY) * new.height / box.height : p.y
             )
         }
-    }
-
-    private static func isArrow(_ annotation: Annotation) -> Bool {
-        if case .arrow = annotation.kind { return true }
-        return false
     }
 }

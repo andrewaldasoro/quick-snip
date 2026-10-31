@@ -1,12 +1,15 @@
 import AppKit
 
 /// The style of what's being drawn or is selected, in its own small glass panel next to the
-/// toolbar, on one row: a Color dropdown | a Width dropdown for shapes, lines and strokes; or Font
-/// and Size dropdowns and the alignment buttons for text.
+/// toolbar, on one row: a Color dropdown | a Width dropdown for shapes, arrows and strokes, then
+/// rectangle/oval buttons for shapes or arrowhead buttons for arrows; or Font and Size dropdowns
+/// and the alignment buttons for text.
 final class StylePanel: NSView {
     struct Actions {
         var openList: @MainActor (StyleList) -> Void
         var selectAlignment: @MainActor (TextAlignment) -> Void
+        var selectShape: @MainActor (ShapeKind) -> Void = { _ in }
+        var selectArrowHeads: @MainActor (ArrowHeads) -> Void = { _ in }
     }
 
     static let spacing: CGFloat = 2
@@ -19,6 +22,8 @@ final class StylePanel: NSView {
     private(set) var options: StyleOptions?
     private(set) var buttons: [StyleList: DropdownButton] = [:]
     private(set) var alignmentButtons: [TextAlignment: NSButton] = [:]
+    private(set) var shapeButtons: [ShapeKind: NSButton] = [:]
+    private(set) var arrowHeadButtons: [ArrowHeads: NSButton] = [:]
     private let row = NSStackView()
     /// Everything after the color dropdown; rebuilt when switching between shapes and text.
     private var styleViews: [NSView] = []
@@ -75,16 +80,21 @@ final class StylePanel: NSView {
         self.options = options
         buttons[.color]?.leadingImage = DropdownListPanel.colorSwatch(color)
         buttons[.color]?.setAccessibilityValue(color.displayName)
-        switch options {
-        case .stroke(let width):
+        if let width = options.lineWidth {
             buttons[.lineWidth]?.title = StyleValue.lineWidth(width).title
+        }
+        switch options {
+        case .stroke:
+            break
+        case .shape(let shape, _):
+            Self.markOn(shape, in: shapeButtons)
+        case .arrow(let heads, _):
+            Self.markOn(heads, in: arrowHeadButtons)
         case .text(let font, let size, let alignment):
             buttons[.font]?.title = font.displayName
             buttons[.font]?.titleFontOverride = font.font(size: Self.fontTitleSize)
             buttons[.fontSize]?.title = StyleValue.fontSize(size).title
-            for (candidate, button) in alignmentButtons {
-                button.state = candidate == alignment ? .on : .off
-            }
+            Self.markOn(alignment, in: alignmentButtons)
         }
         markOpen(openList)
         setFrameSize(fittingSize)
@@ -96,9 +106,15 @@ final class StylePanel: NSView {
         }
     }
 
+    private static func markOn<Value: Hashable>(_ value: Value, in buttons: [Value: NSButton]) {
+        for (candidate, button) in buttons {
+            button.state = candidate == value ? .on : .off
+        }
+    }
+
     private static func isSameKind(_ a: StyleOptions, _ b: StyleOptions?) -> Bool {
         switch (a, b) {
-        case (.stroke, .stroke?), (.text, .text?): true
+        case (.stroke, .stroke?), (.shape, .shape?), (.arrow, .arrow?), (.text, .text?): true
         default: false
         }
     }
@@ -110,12 +126,25 @@ final class StylePanel: NSView {
         }
         buttons = buttons.filter { $0.key == .color }
         alignmentButtons = [:]
+        shapeButtons = [:]
+        arrowHeadButtons = [:]
         styleViews = [ToolbarDivider()]
         switch options {
         case .stroke:
-            let icon = NSImageView(image: NSImage(systemSymbolName: "lineweight", accessibilityDescription: nil) ?? NSImage())
-            icon.contentTintColor = .secondaryLabelColor
-            styleViews += [icon, makeDropdown(.lineWidth, label: "Line width")]
+            styleViews += makeLineWidthViews()
+        case .shape:
+            styleViews += makeLineWidthViews() + [ToolbarDivider()]
+            styleViews += ShapeKind.allCases.map { shape in
+                shapeButtons[shape] = makeToggle(symbol: shape.symbol, label: shape.displayName, action: #selector(shapeClicked(_:)))
+                return shapeButtons[shape] ?? NSView()
+            }
+        case .arrow:
+            styleViews += makeLineWidthViews() + [ToolbarDivider()]
+            styleViews += ArrowHeads.allCases.map { heads in
+                arrowHeadButtons[heads] = makeToggle(
+                    symbol: heads.symbol, label: heads.displayName, action: #selector(arrowHeadsClicked(_:)))
+                return arrowHeadButtons[heads] ?? NSView()
+            }
         case .text:
             styleViews += [makeDropdown(.font, label: "Font"), makeDropdown(.fontSize, label: "Text size"), ToolbarDivider()]
             styleViews += TextAlignment.allCases.map(makeAlignmentButton)
@@ -138,6 +167,19 @@ final class StylePanel: NSView {
         return button
     }
 
+    private func makeLineWidthViews() -> [NSView] {
+        let icon = NSImageView(image: NSImage(systemSymbolName: "lineweight", accessibilityDescription: nil) ?? NSImage())
+        icon.contentTintColor = .secondaryLabelColor
+        return [icon, makeDropdown(.lineWidth, label: "Line width")]
+    }
+
+    private func makeToggle(symbol: String, label: String, action: Selector) -> NSButton {
+        let button = ToolbarButton(symbol: symbol, label: label, toggles: true)
+        button.target = self
+        button.action = action
+        return button
+    }
+
     private func makeAlignmentButton(_ alignment: TextAlignment) -> NSView {
         let button = ToolbarButton(symbol: alignment.symbol, label: alignment.displayName, toggles: true)
         button.target = self
@@ -154,5 +196,15 @@ final class StylePanel: NSView {
     @objc private func alignmentClicked(_ sender: NSButton) {
         guard let alignment = alignmentButtons.first(where: { $0.value === sender })?.key else { return }
         actions.selectAlignment(alignment)
+    }
+
+    @objc private func shapeClicked(_ sender: NSButton) {
+        guard let shape = shapeButtons.first(where: { $0.value === sender })?.key else { return }
+        actions.selectShape(shape)
+    }
+
+    @objc private func arrowHeadsClicked(_ sender: NSButton) {
+        guard let heads = arrowHeadButtons.first(where: { $0.value === sender })?.key else { return }
+        actions.selectArrowHeads(heads)
     }
 }

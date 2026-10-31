@@ -32,7 +32,7 @@ struct ExportRendererTests {
     }
 
     @Test func annotationsKeepFullResolutionAndUntouchedPixels() throws {
-        let image = try render([Annotation(kind: .rectangle(CGRect(x: 20, y: 20, width: 20, height: 20)), style: .default)])
+        let image = try render([Annotation(kind: .shape(CGRect(x: 20, y: 20, width: 20, height: 20)), style: .default)])
         #expect(image.width == 100)
         #expect(image.height == 80)
         #expect(pixel(image, atPoint: 30, 30) == original(atPoint: 30, 30))  // inside the outline
@@ -40,7 +40,7 @@ struct ExportRendererTests {
     }
 
     @Test func rectangleStrokeLandsOnItsEdgesInPixelSpace() throws {
-        let image = try render([Annotation(kind: .rectangle(CGRect(x: 20, y: 20, width: 20, height: 20)), style: .default)])
+        let image = try render([Annotation(kind: .shape(CGRect(x: 20, y: 20, width: 20, height: 20)), style: .default)])
         #expect(pixel(image, atPoint: 20, 30).isClose(to: .red))  // left edge
         #expect(pixel(image, atPoint: 30, 40).isClose(to: .red))  // bottom edge (top-left origin)
         #expect(!pixel(image, atPoint: 30, 25).isClose(to: .red))
@@ -48,7 +48,9 @@ struct ExportRendererTests {
 
     @Test func strokeWidthScalesWithRetina() throws {
         // 4pt medium stroke = 8px: covers x 18…22 pt → pixels 36…43 from display origin.
-        let image = try render([Annotation(kind: .line(from: CGPoint(x: 20, y: 15), to: CGPoint(x: 20, y: 45)), style: .default)])
+        let image = try render([
+            Annotation(kind: .arrow(from: CGPoint(x: 20, y: 15), to: CGPoint(x: 20, y: 45)), style: AnnotationStyle(arrowHeads: .none))
+        ])
         let y = Int((30 - selection.minY) * 2)
         let x = Int((20 - selection.minX) * 2)
         #expect(TestImages.pixel(image, x: x - 3, y: y).isClose(to: .red))
@@ -122,12 +124,33 @@ struct ExportRendererTests {
     }
 
     @Test func annotationsOutsideSelectionAreClipped() throws {
-        let image = try render([Annotation(kind: .rectangle(CGRect(x: 70, y: 60, width: 20, height: 10)), style: .default)])
+        let image = try render([Annotation(kind: .shape(CGRect(x: 70, y: 60, width: 20, height: 10)), style: .default)])
         #expect(pixel(image, atPoint: 30, 30) == original(atPoint: 30, 30))
         #expect(pixel(image, atPoint: 59.5, 49.5) == original(atPoint: 59.5, 49.5))
     }
 
     @Test func emptySelectionRendersNothing() {
         #expect(ExportRenderer.render(display: display, selection: .zero, annotations: [], cache: PixelateCache()) == nil)
+    }
+
+    // MARK: Shapes and arrows
+
+    @Test func ovalFollowsTheCurveInsideItsFrame() throws {
+        let oval = Annotation(kind: .shape(CGRect(x: 20, y: 20, width: 30, height: 20)), style: AnnotationStyle(shape: .oval))
+        let image = try render([oval])
+        #expect(pixel(image, atPoint: 20, 30).isClose(to: .red))  // leftmost point
+        #expect(pixel(image, atPoint: 35, 20).isClose(to: .red))  // top
+        #expect(pixel(image, atPoint: 21, 21) == original(atPoint: 21, 21))  // frame corner stays clear
+        #expect(pixel(image, atPoint: 35, 30) == original(atPoint: 35, 30))
+    }
+
+    @Test(arguments: [(ArrowHeads.none, false), (.end, false), (.both, true)])
+    func startHeadOnlyWithBothHeads(heads: ArrowHeads, hasStartHead: Bool) throws {
+        let arrow = Annotation(
+            kind: .arrow(from: CGPoint(x: 20, y: 30), to: CGPoint(x: 50, y: 30)), style: AnnotationStyle(arrowHeads: heads))
+        let image = try render([arrow])
+        // 3.5 pt off the line: past the 2 pt half-width shaft, inside a head 10 pt from its tip.
+        #expect(pixel(image, atPoint: 30, 26.5).isClose(to: .red) == hasStartHead)
+        #expect(pixel(image, atPoint: 40, 27.5).isClose(to: .red) == (heads != .none))
     }
 }

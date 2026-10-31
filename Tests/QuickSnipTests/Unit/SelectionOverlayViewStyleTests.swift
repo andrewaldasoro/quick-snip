@@ -70,7 +70,7 @@ struct SelectionOverlayViewStyleTests {
     @Test func panelShowsTheShapeJustDrawn() throws {
         let harness = make()
         harness.session.setLineWidth(12)
-        harness.session.toggleTool(.rectangle)
+        harness.session.toggleTool(.shape)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
 
         let panel = try #require(harness.view.stylePanel)
@@ -174,7 +174,7 @@ struct SelectionOverlayViewStyleTests {
 
     @Test func clickOutsideOnlyClosesTheDropdown() throws {
         let harness = make()
-        harness.session.toggleTool(.rectangle)
+        harness.session.toggleTool(.shape)
         harness.view.toggleDropdown(.lineWidth)
         let click = try #require(
             NSEvent.mouseEvent(
@@ -210,7 +210,7 @@ struct SelectionOverlayViewStyleTests {
 
     @Test func colorDropdownColorsWhatsSelected() throws {
         let harness = make()
-        harness.session.toggleTool(.rectangle)
+        harness.session.toggleTool(.shape)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
         let panel = try #require(harness.view.stylePanel)
 
@@ -298,7 +298,7 @@ struct SelectionOverlayViewStyleTests {
     /// undoing): the toolbar refreshed while the undo was still running.
     @Test func undoAndRedoButtonsFollowWhatsLeft() throws {
         let harness = make()
-        harness.session.toggleTool(.rectangle)
+        harness.session.toggleTool(.shape)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 300, y: 250))
         let toolbar = try #require(harness.view.toolbar)
         #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
@@ -497,5 +497,59 @@ struct SelectionOverlayViewStyleTests {
         list.search("serif")
         list.pickSelected()
         #expect(harness.session.document.annotations.first?.style.font == .serif)
+    }
+
+    // MARK: Shapes, arrowheads and modifiers
+
+    /// A mouse event at a display-local point (the view is flipped; the window isn't).
+    private func mouse(_ type: NSEvent.EventType, _ point: CGPoint, _ flags: NSEvent.ModifierFlags = [], in harness: Harness) throws
+        -> NSEvent
+    {
+        try #require(
+            NSEvent.mouseEvent(
+                with: type, location: CGPoint(x: point.x, y: harness.view.bounds.height - point.y), modifierFlags: flags, timestamp: 0,
+                windowNumber: harness.window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+    }
+
+    @Test func ovalButtonTurnsTheSelectedShapeIntoAnOval() throws {
+        let harness = make()
+        harness.session.toggleTool(.shape)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 200), to: CGPoint(x: 300, y: 260))
+        let panel = try #require(harness.view.stylePanel)
+
+        panel.shapeButtons[.oval]?.performClick(nil)
+
+        #expect(harness.session.document.annotations.first?.style.shape == .oval)
+        #expect(panel.shapeButtons[.oval]?.state == .on)
+        #expect((harness.view.toolbar?.toolButtons[.shape] as? ToolbarButton)?.symbol == ShapeKind.oval.symbol)
+    }
+
+    @Test func arrowheadButtonsChangeTheSelectedArrow() throws {
+        let harness = make()
+        harness.session.toggleTool(.arrow)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 200), to: CGPoint(x: 300, y: 260))
+        let panel = try #require(harness.view.stylePanel)
+
+        panel.arrowHeadButtons[.both]?.performClick(nil)
+
+        #expect(harness.session.document.annotations.first?.style.arrowHeads == .both)
+    }
+
+    @Test func shiftDragOnTheOverlayDrawsASquareAndReleasingShiftFreesIt() throws {
+        let harness = make()
+        harness.session.toggleTool(.shape)
+        harness.view.mouseDown(with: try mouse(.leftMouseDown, CGPoint(x: 200, y: 200), in: harness))
+        harness.view.mouseDragged(with: try mouse(.leftMouseDragged, CGPoint(x: 300, y: 250), .shift, in: harness))
+        #expect(harness.session.visibleAnnotations.first?.kind == .shape(CGRect(x: 200, y: 200, width: 100, height: 100)))
+
+        let release = try #require(
+            NSEvent.keyEvent(
+                with: .flagsChanged, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+                context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 56))
+        harness.view.flagsChanged(with: release)
+        #expect(harness.session.visibleAnnotations.first?.kind == .shape(CGRect(x: 200, y: 200, width: 100, height: 50)))
+
+        harness.view.mouseUp(with: try mouse(.leftMouseUp, CGPoint(x: 300, y: 250), in: harness))
+        #expect(harness.session.document.annotations.first?.kind == .shape(CGRect(x: 200, y: 200, width: 100, height: 50)))
     }
 }

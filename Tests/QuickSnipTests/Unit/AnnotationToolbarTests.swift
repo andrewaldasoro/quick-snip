@@ -81,9 +81,21 @@ struct AnnotationToolbarTests {
         toolbar.update(tool: .marker, canUndo: true, canRedo: false)
 
         #expect(toolbar.toolButtons[.marker]?.state == .on)
-        #expect(toolbar.toolButtons[.rectangle]?.state == .off)
+        #expect(toolbar.toolButtons[.shape]?.state == .off)
         #expect(toolbar.commandButtons[.undo]?.isEnabled == true)
         #expect(toolbar.commandButtons[.redo]?.isEnabled == false)
+    }
+
+    @Test func shapeAndArrowButtonsShowWhatTheyDrawNext() {
+        let (toolbar, _) = make()
+        #expect((toolbar.toolButtons[.shape] as? ToolbarButton)?.symbol == ShapeKind.rectangle.symbol)
+        #expect((toolbar.toolButtons[.arrow] as? ToolbarButton)?.symbol == ArrowHeads.end.symbol)
+
+        toolbar.update(tool: nil, style: AnnotationStyle(shape: .oval, arrowHeads: .both), canUndo: false, canRedo: false)
+
+        #expect((toolbar.toolButtons[.shape] as? ToolbarButton)?.symbol == ShapeKind.oval.symbol)
+        #expect((toolbar.toolButtons[.arrow] as? ToolbarButton)?.symbol == ArrowHeads.both.symbol)
+        #expect((toolbar.toolButtons[.pen] as? ToolbarButton)?.symbol == "pencil.tip")
     }
 
     @Test func noToolSelectedTurnsAllOff() {
@@ -104,8 +116,9 @@ struct AnnotationToolbarTests {
     /// A misspelled SF Symbol name silently gives an empty button.
     @Test func everySymbolExists() {
         let names =
-            AnnotationTool.allCases.map(AnnotationToolbar.symbol(for:))
+            AnnotationTool.allCases.map { AnnotationToolbar.symbol(for: $0) }
             + AnnotationToolbar.commands.map(AnnotationToolbar.symbol(for:))
+            + ShapeKind.allCases.map(\.symbol) + ArrowHeads.allCases.map(\.symbol)
         for name in names {
             #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil, "\(name)")
         }
@@ -167,7 +180,7 @@ struct AnnotationToolbarShortcutTests {
     @Test func tooltipsAdvertiseKeyboardShortcuts() {
         let toolbar = AnnotationToolbar(
             actions: .init(selectTool: { _ in }, command: { _ in }))
-        #expect(toolbar.toolButtons[.rectangle]?.toolTip == "Rectangle (R)")
+        #expect(toolbar.toolButtons[.shape]?.toolTip == "Shape (R)")
         #expect(toolbar.toolButtons[.pixelate]?.toolTip == "Pixelate (X)")
         #expect(toolbar.commandButtons[.copy]?.toolTip == "Copy (⌘C)")
         #expect(AnnotationToolbar.label(for: AnnotationColor.red) == "Red (1)")

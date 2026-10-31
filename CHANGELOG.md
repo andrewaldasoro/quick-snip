@@ -10,6 +10,15 @@ Pick the step by how big the change is for users:
 
 Each release's section becomes its GitHub release notes, so write it for users. Every pull request with user-facing changes adds its own `## [x.y.z] - YYYY-MM-DD` section, one step after the last release; merging it to `main` tags and publishes that version. Pull requests without user-facing changes add nothing and release nothing.
 
+## [1.5.0] - 2026-10-30
+
+### Changed
+
+- **Shapes: rectangle or oval**: the Rectangle tool is now the Shape tool (still **R**). Pick a rectangle or an oval next to the color; picking one changes the selected shape too
+- **Arrows: no, one or two heads**: the Line tool joined the Arrow tool (**A**). Pick a plain line, one arrowhead or one at each end next to the color. The **L** shortcut is gone
+- **Hold Shift** while drawing for a square, a circle, or a line at 45° steps; with a corner handle, Shift resizes a shape in proportion and an arrow's end in 45° steps. **Hold Option** to draw a shape out from its center. Pressing or releasing a key mid-drag updates the shape right away
+- The shape and arrowheads you pick last are kept for the next capture
+
 ## [1.4.0] - 2026-10-30
 
 ### Changed

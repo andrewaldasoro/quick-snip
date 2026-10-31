@@ -9,7 +9,7 @@ struct ShortcutCheatsheetTests {
 
     @Test func listsSectionsInOrder() {
         let titles = ShortcutCheatsheet(captureShortcut: "⇧⌘2").sections.map(\.title)
-        #expect(titles == ["Anywhere", "While capturing", "Tools", "Colors", "Text"])
+        #expect(titles == ["Anywhere", "While capturing", "Tools", "Colors", "Drawing", "Text"])
     }
 
     @Test func showsTheCurrentCaptureHotkey() {
@@ -23,7 +23,7 @@ struct ShortcutCheatsheetTests {
     }
 
     @Test func overlayLeavesOutTheGlobalHotkey() {
-        #expect(ShortcutCheatsheet.overlay.sections.map(\.title) == ["While capturing", "Tools", "Colors", "Text"])
+        #expect(ShortcutCheatsheet.overlay.sections.map(\.title) == ["While capturing", "Tools", "Colors", "Drawing", "Text"])
     }
 
     /// The cheatsheet can't drift from the real key handling.
@@ -31,6 +31,12 @@ struct ShortcutCheatsheetTests {
     func everyOverlayBindingIsListed(command: OverlayCommand, key: String) {
         let listed = entry(ShortcutCheatsheet.action(for: command), in: .overlay)
         #expect(listed?.keys.contains(key) == true)
+    }
+
+    @Test func drawingModifiersAreListed() {
+        #expect(entry("Square, circle, 45° line", in: .overlay)?.keys == ["⇧ Drag"])
+        #expect(entry("Shape from its center", in: .overlay)?.keys == ["⌥ Drag"])
+        #expect(entry("Resize in proportion", in: .overlay)?.keys == ["⇧ Corner"])
     }
 
     @Test func toolsAndColorsFollowToolbarOrder() {

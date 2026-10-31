@@ -13,6 +13,7 @@ import Foundation
 ///   it; otherwise the drag moves/creates the selection. Annotation handles win over the
 ///   selection's, since the user just picked that annotation.
 ///   Once there are annotations, clicking outside no longer starts a new selection.
+/// - Shift and Option (`DrawModifiers`) shape drawing and resizing; they can change mid-drag.
 /// - Before there's a selection, hovering highlights the window under the cursor and a click
 ///   (no drag) selects it.
 @MainActor
@@ -38,7 +39,7 @@ final class CaptureSession {
 
     private var builder: AnnotationBuilder?
     private var move: (original: Annotation, start: CGPoint)?
-    private var resize: (original: Annotation, handle: AnnotationHandle)?
+    private var resize: (original: Annotation, handle: AnnotationHandle, point: CGPoint)?
     /// Text being typed in place, new or reopened; nil when not typing.
     private(set) var textBeingTyped: TextEditRequest?
 
@@ -64,6 +65,8 @@ final class CaptureSession {
     var onSnapToCoveredWindow: (@MainActor (_ displayID: CGDirectDisplayID, _ window: SnapWindow) -> Void)?
     /// The text font or size changed, so it can be remembered for the next capture.
     var onTextStyleChange: (@MainActor (_ font: TextFont, _ size: CGFloat) -> Void)?
+    /// The shape or arrowheads changed, so they can be remembered for the next capture.
+    var onDrawingStyleChange: (@MainActor (_ shape: ShapeKind, _ arrowHeads: ArrowHeads) -> Void)?
     /// Asks the overlay of a display to start text entry at a display-local point.
     var onRequestTextEntry: (@MainActor (_ displayID: CGDirectDisplayID, _ request: TextEditRequest) -> Void)?
 
@@ -150,24 +153,12 @@ final class CaptureSession {
     var styleOptions: StyleOptions? {
         // The text being typed is hidden from the canvas, but its style is still what's shown.
         if let typing {
-            return Self.options(for: .text("", origin: .zero), style: typing.style)
+            return StyleOptions.make(for: .text, style: typing.style)
         }
         if let selected = selectedAnnotation {
-            return Self.options(for: selected.kind, style: selected.style)
+            return StyleOptions.make(for: selected.kind.tool, style: selected.style)
         }
-        switch tool {
-        case nil, .pixelate: return nil
-        case .text: return .text(font: style.font, size: style.fontSize, alignment: style.alignment)
-        default: return .stroke(lineWidth: style.lineWidth)
-        }
-    }
-
-    private static func options(for kind: AnnotationKind, style: AnnotationStyle) -> StyleOptions? {
-        switch kind {
-        case .pixelate: nil
-        case .text: .text(font: style.font, size: style.fontSize, alignment: style.alignment)
-        case .rectangle, .line, .arrow, .pen, .marker: .stroke(lineWidth: style.lineWidth)
-        }
+        return tool.flatMap { StyleOptions.make(for: $0, style: style) }
     }
 
     /// Looked up in the document, not among the visible annotations: text being edited is
@@ -207,7 +198,7 @@ final class CaptureSession {
         let hit = onActive ? hitTest(on: id, at: point) : .outside
 
         if let handle = annotationHandle(on: id, at: point), let selected = selectedAnnotation {
-            resize = (selected, handle)
+            resize = (selected, handle, point)
             notify()
             return
         }
@@ -228,7 +219,7 @@ final class CaptureSession {
             if tool == .text {
                 textBoxDrag = (point, point)
             } else {
-                builder = AnnotationBuilder(tool: tool, style: style, start: point)
+                builder = AnnotationBuilder(tool: tool, style: style, start: point, bounds: selection)
                 draft = builder?.annotation
             }
             notify()
@@ -263,10 +254,11 @@ final class CaptureSession {
         notify()
     }
 
-    func mouseDragged(on id: CGDirectDisplayID, to point: CGPoint) {
+    func mouseDragged(on id: CGDirectDisplayID, to point: CGPoint, modifiers: DrawModifiers = .none) {
         guard id == activeDisplayID else { return }
         if var builder {
-            builder.add(clampToSelection(point))
+            builder.modifiers = modifiers
+            builder.add(point)
             self.builder = builder
             draft = builder.annotation
         } else if let drag = textBoxDrag {
@@ -274,17 +266,19 @@ final class CaptureSession {
         } else if let move {
             draft = move.original.offsetBy(dx: point.x - move.start.x, dy: point.y - move.start.y)
         } else if let resize {
-            draft = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: point) ?? draft
+            self.resize?.point = point
+            draft = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: point, modifiers: modifiers) ?? draft
         } else {
             editors[id]?.mouseDragged(to: point)
         }
         notify()
     }
 
-    func mouseUp(on id: CGDirectDisplayID, at point: CGPoint) {
+    func mouseUp(on id: CGDirectDisplayID, at point: CGPoint, modifiers: DrawModifiers = .none) {
         guard id == activeDisplayID else { return }
         if var builder {
-            builder.add(clampToSelection(point))
+            builder.modifiers = modifiers
+            builder.add(point)
             self.builder = nil
             draft = nil
             if let annotation = builder.finish() {
@@ -305,7 +299,7 @@ final class CaptureSession {
             document.update(moved, actionName: "Move \(moved.name)")
         } else if let resize {
             self.resize = nil
-            let resized = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: point) ?? draft
+            let resized = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: point, modifiers: modifiers) ?? draft
             draft = nil
             if let resized {
                 document.update(resized, actionName: "Resize \(resized.name)")
@@ -318,6 +312,21 @@ final class CaptureSession {
             }
         }
         snapTarget = nil
+        notify()
+    }
+
+    /// Shift or Option went down or up mid-drag: the shape being drawn or resized follows
+    /// right away, without waiting for the mouse to move.
+    func modifiersChanged(_ modifiers: DrawModifiers) {
+        if var builder {
+            builder.modifiers = modifiers
+            self.builder = builder
+            draft = builder.annotation
+        } else if let resize {
+            draft = AnnotationResizer.resized(resize.original, dragging: resize.handle, to: resize.point, modifiers: modifiers) ?? draft
+        } else {
+            return
+        }
         notify()
     }
 
@@ -340,8 +349,7 @@ final class CaptureSession {
     }
 
     private func clampToSelection(_ point: CGPoint) -> CGPoint {
-        guard let rect = activeSelection else { return point }
-        return CGPoint(x: min(max(point.x, rect.minX), rect.maxX), y: min(max(point.y, rect.minY), rect.maxY))
+        activeSelection.map { Geometry.clamp(point, to: $0) } ?? point
     }
 
     // MARK: Editing
@@ -363,9 +371,25 @@ final class CaptureSession {
     /// Applies to new shapes and to the selected one (not text or pixelate, which have no line).
     func setLineWidth(_ width: CGFloat) {
         style.lineWidth = width
-        if case .stroke = styleOptions {
+        if styleOptions?.lineWidth != nil {
             restyleSelectedAnnotation { $0.lineWidth = width }
         }
+        notify()
+    }
+
+    /// Applies to new shapes and turns the selected one into it, in the same frame.
+    func setShape(_ shape: ShapeKind) {
+        style.shape = shape
+        restyleSelected(drawnWith: .shape) { $0.shape = shape }
+        onDrawingStyleChange?(style.shape, style.arrowHeads)
+        notify()
+    }
+
+    /// Applies to new arrows and to the selected one.
+    func setArrowHeads(_ heads: ArrowHeads) {
+        style.arrowHeads = heads
+        restyleSelected(drawnWith: .arrow) { $0.arrowHeads = heads }
+        onDrawingStyleChange?(style.shape, style.arrowHeads)
         notify()
     }
 
@@ -487,6 +511,13 @@ final class CaptureSession {
     /// Font changes don't show on shapes, so they'd only add invisible undo steps there.
     private func restyleSelectedText(_ change: (inout AnnotationStyle) -> Void) {
         guard selectedTextStyle != nil else { return }
+        restyleSelectedAnnotation(change)
+    }
+
+    /// A shape change on an arrow (or the other way round) wouldn't show, so it would only
+    /// add an invisible undo step.
+    private func restyleSelected(drawnWith tool: AnnotationTool, _ change: (inout AnnotationStyle) -> Void) {
+        guard let id = selectedAnnotationID, document.annotation(id)?.kind.tool == tool else { return }
         restyleSelectedAnnotation(change)
     }
 

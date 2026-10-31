@@ -118,6 +118,7 @@ final class SelectionOverlayView: NSView {
         let toolbar = self.toolbar ?? makeToolbar()
         toolbar.update(
             tool: session.tool,
+            style: session.style,
             canUndo: session.document.canUndo,
             canRedo: session.document.canRedo
         )
@@ -157,6 +158,14 @@ final class SelectionOverlayView: NSView {
                 openList: { [weak self] list in self?.toggleDropdown(list) },
                 selectAlignment: { [weak self] alignment in
                     self?.session.setAlignment(alignment)
+                    self?.restoreFocus()
+                },
+                selectShape: { [weak self] shape in
+                    self?.session.setShape(shape)
+                    self?.restoreFocus()
+                },
+                selectArrowHeads: { [weak self] heads in
+                    self?.session.setArrowHeads(heads)
                     self?.restoreFocus()
                 }
             ))
@@ -434,13 +443,19 @@ final class SelectionOverlayView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        session.mouseDragged(on: display.displayID, to: localPoint(of: event))
+        session.mouseDragged(on: display.displayID, to: localPoint(of: event), modifiers: DrawModifiers(event.modifierFlags))
         updateCursor(for: event)
     }
 
     override func mouseUp(with event: NSEvent) {
-        session.mouseUp(on: display.displayID, at: localPoint(of: event))
+        session.mouseUp(on: display.displayID, at: localPoint(of: event), modifiers: DrawModifiers(event.modifierFlags))
         updateCursor(for: event)
+    }
+
+    /// Shift or Option pressed or released mid-drag reshapes what's being drawn at once.
+    override func flagsChanged(with event: NSEvent) {
+        session.modifiersChanged(DrawModifiers(event.modifierFlags))
+        super.flagsChanged(with: event)
     }
 
     private func localPoint(of event: NSEvent) -> CGPoint {

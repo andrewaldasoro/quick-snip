@@ -102,6 +102,10 @@ final class CaptureController {
                 self?.settings?.textFont = font
                 self?.settings?.textSize = size
             }
+            session.onDrawingStyleChange = { [weak self] shape, arrowHeads in
+                self?.settings?.shape = shape
+                self?.settings?.arrowHeads = arrowHeads
+            }
             session.onSnapToCoveredWindow = { [weak self, weak session] displayID, window in
                 guard let session else { return }
                 self?.coveredWindows?.load(window, on: displayID, into: session)
@@ -115,10 +119,10 @@ final class CaptureController {
         }
     }
 
-    /// New captures start with the text font and size picked last time.
+    /// New captures start with the text font and size, shape and arrowheads picked last time.
     private var initialStyle: AnnotationStyle {
         guard let settings else { return .default }
-        return AnnotationStyle(font: settings.textFont, fontSize: settings.textSize)
+        return AnnotationStyle(font: settings.textFont, fontSize: settings.textSize, shape: settings.shape, arrowHeads: settings.arrowHeads)
     }
 
     /// Displays were added, removed, or rearranged: the frozen images no longer match.

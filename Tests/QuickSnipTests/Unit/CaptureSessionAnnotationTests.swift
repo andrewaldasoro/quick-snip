@@ -16,7 +16,7 @@ struct CaptureSessionAnnotationTests {
     }
 
     private func drawRectangle(_ session: CaptureSession, _ rect: CGRect) {
-        if session.tool != .rectangle { session.toggleTool(.rectangle) }
+        if session.tool != .shape { session.toggleTool(.shape) }
         TestSessions.drag(session, on: 1, from: rect.origin, to: CGPoint(x: rect.maxX, y: rect.maxY))
     }
 
@@ -36,7 +36,7 @@ struct CaptureSessionAnnotationTests {
         let session = makeSession()
         drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
 
-        #expect(session.document.annotations.map(\.kind) == [.rectangle(CGRect(x: 40, y: 40, width: 30, height: 20))])
+        #expect(session.document.annotations.map(\.kind) == [.shape(CGRect(x: 40, y: 40, width: 30, height: 20))])
         #expect(session.activeSelection == selection)
     }
 
@@ -69,7 +69,7 @@ struct CaptureSessionAnnotationTests {
 
     @Test func draftIsVisibleWhileDrawing() {
         let session = makeSession()
-        session.toggleTool(.line)
+        session.toggleTool(.arrow)
         session.mouseDown(on: 1, at: CGPoint(x: 40, y: 40))
         session.mouseDragged(on: 1, to: CGPoint(x: 80, y: 40))
 
@@ -85,14 +85,14 @@ struct CaptureSessionAnnotationTests {
 
     @Test func drawingIsClampedToSelection() {
         let session = makeSession()
-        session.toggleTool(.line)
+        session.toggleTool(.arrow)
         TestSessions.drag(session, on: 1, from: CGPoint(x: 100, y: 50), to: CGPoint(x: 500, y: -50))
-        #expect(session.document.annotations.first?.kind == .line(from: CGPoint(x: 100, y: 50), to: CGPoint(x: 140, y: 20)))
+        #expect(session.document.annotations.first?.kind == .arrow(from: CGPoint(x: 100, y: 50), to: CGPoint(x: 140, y: 20)))
     }
 
     @Test func toolDragOutsideSelectionDoesNothing() {
         let session = makeSession()
-        session.toggleTool(.rectangle)
+        session.toggleTool(.shape)
         TestSessions.drag(session, on: 1, from: CGPoint(x: 160, y: 130), to: CGPoint(x: 190, y: 140))
         #expect(session.document.annotations.isEmpty)
         #expect(session.activeSelection == selection)
@@ -227,7 +227,7 @@ struct CaptureSessionAnnotationTests {
     }
 
     @Test func onlyTextCanBeReopened() {
-        #expect(TextEditRequest.editing(Annotation(kind: .rectangle(.zero), style: .default)) == nil)
+        #expect(TextEditRequest.editing(Annotation(kind: .shape(.zero), style: .default)) == nil)
     }
 
     @Test func textToolClickRequestsOneLineInsideSelection() {
@@ -376,6 +376,10 @@ struct CaptureSessionAnnotationTests {
         let session = makeSession()
         #expect(session.styleOptions == nil)
         session.toggleTool(.arrow)
+        #expect(session.styleOptions == .arrow(.end, lineWidth: LineWidth.default))
+        session.toggleTool(.shape)
+        #expect(session.styleOptions == .shape(.rectangle, lineWidth: LineWidth.default))
+        session.toggleTool(.pen)
         #expect(session.styleOptions == .stroke(lineWidth: LineWidth.default))
         session.toggleTool(.text)
         #expect(session.styleOptions == .text(font: .system, size: TextSize.default, alignment: .left))
@@ -389,7 +393,7 @@ struct CaptureSessionAnnotationTests {
         drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
         session.setLineWidth(2)  // applies to the selected rectangle too
 
-        #expect(session.styleOptions == .stroke(lineWidth: 2))
+        #expect(session.styleOptions == .shape(.rectangle, lineWidth: 2))
         #expect(session.document.annotations.first?.style.lineWidth == 2)
     }
 
@@ -446,7 +450,7 @@ struct CaptureSessionAnnotationTests {
         // Grab the top edge between handles; at a handle the drag would resize instead.
         TestSessions.drag(session, on: 1, from: CGPoint(x: 47, y: 40), to: CGPoint(x: 67, y: 60))
 
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 60, y: 60, width: 30, height: 20)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 60, y: 60, width: 30, height: 20)))
         #expect(session.activeSelection == selection)
         #expect(session.document.undoManager.undoActionName == "Move Rectangle")
     }
@@ -457,12 +461,12 @@ struct CaptureSessionAnnotationTests {
 
         session.mouseDown(on: 1, at: CGPoint(x: 47, y: 40))
         session.mouseDragged(on: 1, to: CGPoint(x: 57, y: 40))
-        #expect(session.visibleAnnotations.first?.kind == .rectangle(CGRect(x: 50, y: 40, width: 30, height: 20)))
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+        #expect(session.visibleAnnotations.first?.kind == .shape(CGRect(x: 50, y: 40, width: 30, height: 20)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 30, height: 20)))
         session.mouseUp(on: 1, at: CGPoint(x: 57, y: 40))
 
         session.undo()
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 30, height: 20)))
     }
 
     // MARK: Resizing annotations
@@ -479,11 +483,11 @@ struct CaptureSessionAnnotationTests {
 
         session.mouseDown(on: 1, at: CGPoint(x: 70, y: 60))
         session.mouseDragged(on: 1, to: CGPoint(x: 90, y: 80))
-        #expect(session.visibleAnnotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 50, height: 40)))
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+        #expect(session.visibleAnnotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 50, height: 40)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 30, height: 20)))
         session.mouseUp(on: 1, at: CGPoint(x: 100, y: 90))
 
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 60, height: 50)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 60, height: 50)))
         #expect(session.document.undoManager.undoActionName == "Resize Rectangle")
         #expect(session.activeSelection == selection)
     }
@@ -498,7 +502,7 @@ struct CaptureSessionAnnotationTests {
         )
         session.undo()
 
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 30, height: 20)))
     }
 
     @Test func annotationHandleWinsOverTheSelectionHandle() {
@@ -508,7 +512,7 @@ struct CaptureSessionAnnotationTests {
 
         TestSessions.drag(session, on: 1, from: CGPoint(x: 140, y: 120), to: CGPoint(x: 120, y: 110))
 
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 100, y: 80, width: 20, height: 30)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 100, y: 80, width: 20, height: 30)))
         #expect(session.activeSelection == selection)
     }
 
@@ -519,7 +523,7 @@ struct CaptureSessionAnnotationTests {
 
         TestSessions.drag(session, on: 1, from: CGPoint(x: 70, y: 60), through: [CGPoint(x: 80, y: 70)], to: CGPoint(x: 41, y: 41))
 
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 40, height: 30)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 40, height: 30)))
     }
 
     @Test func handlesOnlyResizeWithoutATool() {
@@ -529,7 +533,7 @@ struct CaptureSessionAnnotationTests {
         #expect(session.annotationHandle(on: 1, at: CGPoint(x: 70, y: 60)) == .frame(.bottomRight))
         #expect(session.annotationHandle(on: 2, at: CGPoint(x: 70, y: 60)) == nil)
 
-        session.toggleTool(.line)
+        session.toggleTool(.arrow)
         #expect(session.annotationHandle(on: 1, at: CGPoint(x: 70, y: 60)) == nil)
     }
 
@@ -624,7 +628,7 @@ struct CaptureSessionAnnotationTests {
         TestSessions.drag(session, on: 1, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 110, y: 105))
 
         #expect(session.activeSelection == selection.offsetBy(dx: 10, dy: 5))
-        #expect(session.document.annotations.first?.kind == .rectangle(CGRect(x: 40, y: 40, width: 30, height: 20)))
+        #expect(session.document.annotations.first?.kind == .shape(CGRect(x: 40, y: 40, width: 30, height: 20)))
     }
 
     // MARK: Output
@@ -644,7 +648,7 @@ struct CaptureSessionAnnotationTests {
         let session = makeSession()
         var changes = 0
         session.onChange = { changes += 1 }
-        session.toggleTool(.rectangle)
+        session.toggleTool(.shape)
         session.setColor(.blue)
         drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
         session.undo()

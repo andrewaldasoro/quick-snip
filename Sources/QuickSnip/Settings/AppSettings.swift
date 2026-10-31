@@ -38,6 +38,8 @@ final class AppSettings {
         static let showMenuBarIcon = "showMenuBarIcon"
         static let textFont = "textFont"
         static let textSize = "textSize"
+        static let shape = "shape"
+        static let arrowHeads = "arrowHeads"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -68,6 +70,15 @@ final class AppSettings {
         didSet { defaults.set(Double(textSize), forKey: Key.textSize) }
     }
 
+    /// The last shape (rectangle or oval) and arrowheads picked.
+    var shape: ShapeKind {
+        didSet { defaults.set(shape.rawValue, forKey: Key.shape) }
+    }
+
+    var arrowHeads: ArrowHeads {
+        didSet { defaults.set(arrowHeads.rawValue, forKey: Key.arrowHeads) }
+    }
+
     init(defaults: UserDefaults = .standard, defaultDirectory: URL = ScreenshotSaver.defaultDirectory) {
         self.defaults = defaults
         saveDirectory =
@@ -78,5 +89,7 @@ final class AppSettings {
         showMenuBarIcon = defaults.object(forKey: Key.showMenuBarIcon) as? Bool ?? true
         textFont = defaults.string(forKey: Key.textFont).flatMap(TextFont.init(storageValue:)) ?? .system
         textSize = (defaults.object(forKey: Key.textSize) as? Double).map { TextSize.clamp(CGFloat($0)) } ?? TextSize.default
+        shape = defaults.string(forKey: Key.shape).flatMap(ShapeKind.init(rawValue:)) ?? AnnotationStyle.default.shape
+        arrowHeads = defaults.string(forKey: Key.arrowHeads).flatMap(ArrowHeads.init(rawValue:)) ?? AnnotationStyle.default.arrowHeads
     }
 }
