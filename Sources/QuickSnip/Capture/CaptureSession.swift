@@ -384,12 +384,11 @@ final class CaptureSession {
         notify()
     }
 
-    /// Applies to new text and to the selected text; one-line text keeps its place on screen.
+    /// Applies to new text and to the selected text. It lines the lines up inside the text's
+    /// box, so the box stays where it is.
     func setAlignment(_ alignment: TextAlignment) {
         style.alignment = alignment
-        if let id = selectedAnnotationID, let selected = document.annotation(id), case .text = selected.kind {
-            document.update(selected.aligned(alignment), actionName: "Change Style")
-        }
+        restyleSelectedText { $0.alignment = alignment }
         notify()
     }
 
@@ -411,12 +410,10 @@ final class CaptureSession {
 
     /// Typing in place ended: new text is added; edited text is updated in one undo step, or
     /// removed when it was emptied. Either way it ends up selected with the tool off.
-    /// `placement` is where new text ended up while typing (realigning moves its anchor);
-    /// edited text keeps its own.
-    func finishText(_ text: String, for request: TextEditRequest, placement: TextPlacement? = nil, on id: CGDirectDisplayID) {
+    func finishText(_ text: String, for request: TextEditRequest, on id: CGDirectDisplayID) {
         if textBeingTyped == request { textBeingTyped = nil }
         guard let annotationID = request.annotationID else {
-            addText(text, at: placement ?? request.placement, on: id)
+            addText(text, at: request.placement, on: id)
             return
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

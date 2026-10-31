@@ -1,6 +1,7 @@
 import AppKit
 
-/// How text lines up: inside its box, or around the point where it was placed.
+/// How lines of text line up inside their box (a dragged box, or click text's own box: as wide
+/// as its longest line).
 enum TextAlignment: String, CaseIterable, Sendable {
     case left, center, right
 
@@ -25,15 +26,6 @@ enum TextAlignment: String, CaseIterable, Sendable {
         case .left: .left
         case .center: .center
         case .right: .right
-        }
-    }
-
-    /// Where the placement point sits across a line of text: its start, middle or end.
-    var anchorFraction: CGFloat {
-        switch self {
-        case .left: 0
-        case .center: 0.5
-        case .right: 1
         }
     }
 }

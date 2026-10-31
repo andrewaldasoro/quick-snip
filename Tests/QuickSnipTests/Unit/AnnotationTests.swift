@@ -103,20 +103,6 @@ struct AnnotationTests {
 
     // MARK: Style
 
-    @Test func realigningOneLineTextKeepsItInPlace() {
-        let text = Annotation(kind: .text("Hello", origin: CGPoint(x: 50, y: 60)), style: .default)
-        let right = text.aligned(.right)
-        #expect(right.style.alignment == .right)
-        #expect(right.bounds == text.bounds)
-        #expect(right.kind == .text("Hello", origin: CGPoint(x: text.bounds.maxX, y: 60)))
-    }
-
-    @Test func realigningABoxKeepsTheBox() {
-        let box = Annotation(kind: .text("Hello", origin: CGPoint(x: 50, y: 60), boxWidth: 100), style: .default)
-        #expect(box.aligned(.center).kind == box.kind)
-        #expect(box.aligned(.center).style.alignment == .center)
-    }
-
     @Test func movingABoxKeepsItsWidth() {
         let box = Annotation(kind: .text("Hello", origin: CGPoint(x: 50, y: 60), boxWidth: 100), style: .default)
         #expect(box.offsetBy(dx: 5, dy: 10).kind == .text("Hello", origin: CGPoint(x: 55, y: 70), boxWidth: 100))

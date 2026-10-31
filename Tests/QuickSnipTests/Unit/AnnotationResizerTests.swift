@@ -171,7 +171,7 @@ struct AnnotationResizerTests {
         #expect(AnnotationResizer.resized(box, dragging: .frame(.topLeft), to: .zero) == nil)
     }
 
-    @Test func scalingCenteredTextKeepsItsAnchorConsistent() throws {
+    @Test func scalingCenteredTextKeepsItsOriginAtTheTopLeft() throws {
         var style = AnnotationStyle.default
         style.alignment = .center
         let text = Annotation(kind: .text("Hello", origin: CGPoint(x: 200, y: 100)), style: style)
@@ -185,6 +185,6 @@ struct AnnotationResizerTests {
             Issue.record("Expected one-line text")
             return
         }
-        #expect(abs(origin.x - resized.bounds.midX) < 0.001)
+        #expect(origin == resized.bounds.origin)  // click text's origin is its box's top-left
     }
 }

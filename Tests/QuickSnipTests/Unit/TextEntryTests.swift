@@ -28,12 +28,15 @@ struct TextEntryTests {
         #expect(!entry.isBox)
     }
 
-    @Test func rightAlignedClickTextEndsAtTheClick() {
+    /// Click text is a box anchored on its left edge, whatever the alignment.
+    @Test func rightAlignedClickTextStillStartsAtTheClick() {
         let (entry, _) = make(.line(at: CGPoint(x: 300, y: 50)), alignment: .right)
-        entry.editor.string = "Ends here"
+        entry.editor.string = "Short\nA longer line"
         entry.layout()
-        #expect(entry.editor.frame.maxX == 300)
+        #expect(entry.editor.frame.minX == 300)
         #expect(entry.editor.alignment == .right)
+        let longest = ceil(TextLayout.attributed("A longer line", style: AnnotationStyle(alignment: .right)).size().width)
+        #expect(entry.editor.textContainer?.containerSize.width == longest)  // lines align within the text's own width
     }
 
     @Test func clickTextIsAsWideAsItsLongestLine() {

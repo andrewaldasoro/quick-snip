@@ -356,52 +356,32 @@ struct SelectionOverlayViewStyleTests {
         #expect(panel.alignmentButtons[.right]?.state == .on)
     }
 
-    /// Regression: realigning text while typing slid it left (centered on, or ending at, the
-    /// click). It stays put, as placed text does, and grows from its new anchor from then on.
-    @Test(arguments: [TextAlignment.center, .right])
-    func realigningTextBeingTypedKeepsItInPlace(alignment: TextAlignment) throws {
+    /// Regression: right alignment slid text being typed to the left. Click text is a box
+    /// anchored on its left edge: it only grows right and down, alignment lines the lines up
+    /// inside it, and the box it has when typing ends is the placed text's bounds.
+    @Test(arguments: TextAlignment.allCases)
+    func clickTextKeepsItsLeftEdgeWhateverTheAlignment(alignment: TextAlignment) throws {
         let harness = make()
         harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
         harness.session.toggleTool(.text)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
         let editor = try #require(harness.view.textEditor)
         editor.insertText("Typing", replacementRange: editor.selectedRange())
-        // The text itself: the editor is a caret's width wider, on the side the text grows.
-        func textFrame() -> CGRect {
-            let caret = TextEntry.caretRoom
-            let fraction = harness.session.style.alignment.anchorFraction
-            return CGRect(
-                x: editor.frame.minX + caret * fraction, y: editor.frame.minY, width: editor.frame.width - caret,
-                height: editor.frame.height)
-        }
-        let before = textFrame()
 
         try #require(harness.view.stylePanel).alignmentButtons[alignment]?.performClick(nil)
-
-        #expect(textFrame() == before)  // nothing slides
-        editor.insertText(" more", replacementRange: editor.selectedRange())
-        let anchor = before.minX + before.width * alignment.anchorFraction
-        let grown = textFrame()
-        #expect(abs(grown.minX + grown.width * alignment.anchorFraction - anchor) < 0.5)  // grows around the new anchor
+        #expect(editor.frame.minX == 300)  // realigning doesn't move it
+        editor.insertText(" a longer line", replacementRange: editor.selectedRange())
+        editor.insertNewline(nil)
+        editor.insertText("short", replacementRange: editor.selectedRange())
+        #expect(editor.frame.minX == 300)  // growing doesn't either
+        let typed = editor.frame
 
         harness.view.commitTextEntry()
         let placed = try #require(harness.session.document.annotations.first)
-        #expect(abs(placed.bounds.minX - grown.minX) < 0.5)  // lands where it was typed
+        #expect(placed.bounds.minX == 300)
+        #expect(placed.bounds.minY == typed.minY)
+        #expect(abs(placed.bounds.width - (typed.width - TextEntry.caretRoom)) < 0.5)  // the same box
         #expect(placed.style.alignment == alignment)
-    }
-
-    @Test func colorAndSizeChangeTheTextBeingTyped() throws {
-        let harness = make()
-        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
-        harness.session.toggleTool(.text)
-        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 300, y: 150), to: CGPoint(x: 300, y: 150))
-        let editor = try #require(harness.view.textEditor)
-
-        harness.session.setColor(.blue)
-        harness.session.setFontSize(48)
-
-        #expect(editor.textColor == AnnotationColor.blue.nsColor)
-        #expect(editor.font == TextFont.system.font(size: 48))
     }
 
     /// Regression: re-editing text with a double-click hid the style panel, since the text

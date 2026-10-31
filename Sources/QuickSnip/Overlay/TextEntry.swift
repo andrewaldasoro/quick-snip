@@ -1,8 +1,8 @@
 import AppKit
 
 /// Typing a text annotation in place, in `editor` on the overlay: new text, or existing text
-/// reopened with a double-click. Click text grows sideways from its anchor (start, middle or end
-/// by alignment) and only breaks lines at Return; box text wraps to the box's width. Both grow
+/// reopened with a double-click. Click text is a box anchored on its left edge that grows right
+/// as its longest line does and only breaks lines at Return; box text wraps to the box's width. Both grow
 /// down a line at a time, so the lines above never move. The text is measured the way
 /// `TextLayout` draws it, so nothing jumps when typing ends.
 @MainActor
@@ -36,15 +36,6 @@ final class TextEntry {
     /// Follows the style panel while typing: the font, color and alignment change in place.
     func update(style: AnnotationStyle, placement: TextPlacement) {
         guard style != self.style || placement != self.placement else { return }
-        var placement = placement
-        // New one-line text realigned while typing stays where it is, like placed text does
-        // (`Annotation.aligned`): the anchor moves under the text instead of the text sliding
-        // to the click. Reopened text arrives already re-anchored by the session.
-        if style.alignment != self.style.alignment, placement == self.placement, !isBox {
-            let textMinX = editor.frame.minX + Self.caretRoom * self.style.alignment.anchorFraction
-            let textWidth = editor.frame.width - Self.caretRoom
-            placement = .line(at: CGPoint(x: textMinX + textWidth * style.alignment.anchorFraction, y: placement.origin.y))
-        }
         self.style = style
         self.placement = placement
         applyStyle()
@@ -65,7 +56,8 @@ final class TextEntry {
         editor.isAutomaticTextReplacementEnabled = false
         // Text starts exactly at the placement, like the drawn annotation (no line padding).
         editor.textContainer?.lineFragmentPadding = 0
-        editor.textContainer?.widthTracksTextView = true
+        // A box's text wraps to the box; click text's container is sized by `layout()`.
+        editor.textContainer?.widthTracksTextView = isBox
         editor.setAccessibilityLabel(isBox ? "Annotation text box" : "Annotation text")
     }
 
@@ -87,12 +79,16 @@ final class TextEntry {
             editor.setFrameSize(NSSize(width: boxWidth, height: max(lineHeight, boxHeight())))
             return
         }
+        // Click text: a box anchored on its left edge, as wide as the longest line, so it only
+        // grows right and down and alignment never moves it.
         let size = TextLayout.attributed(text, style: style).size()
         // A trailing Return opens an empty line that the string's size doesn't count yet.
         let height = max(lineHeight, ceil(size.height) + (text.hasSuffix("\n") ? lineHeight : 0))
-        let width = ceil(size.width) + Self.caretRoom
-        let anchor = style.alignment.anchorFraction
-        editor.frame = CGRect(x: placement.origin.x - width * anchor, y: placement.origin.y, width: width, height: height)
+        let textWidth = ceil(size.width)
+        // Lines align within the text's own width, as they're drawn once placed; the caret's
+        // extra room sits past it.
+        editor.textContainer?.containerSize = NSSize(width: max(textWidth, 1), height: .greatestFiniteMagnitude)
+        editor.frame = CGRect(x: placement.origin.x, y: placement.origin.y, width: textWidth + Self.caretRoom, height: height)
     }
 
     /// The box's text as laid out, including the empty line after a trailing Return.

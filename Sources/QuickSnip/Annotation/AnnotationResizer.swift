@@ -86,7 +86,7 @@ enum AnnotationResizer {
         let isTop = handle == .topLeft || handle == .topRight
         let frame = CGRect(
             x: isLeft ? fixed.x - size.width : fixed.x, y: isTop ? fixed.y - size.height : fixed.y, width: size.width, height: size.height)
-        result.kind = .text(string, origin: TextLayout.origin(forLineFrame: frame, alignment: original.style.alignment))
+        result.kind = .text(string, origin: frame.origin)
         return result
     }
 
