@@ -25,8 +25,8 @@ final class OverlayWindowManager: OverlayPresenting {
         session.onChange = { [weak self] in
             for view in self?.overlayViews ?? [] { view.sessionDidChange() }
         }
-        session.onRequestTextEntry = { [weak self] displayID, placement in
-            self?.overlayViews.first { $0.display.displayID == displayID }?.beginTextEntry(at: placement)
+        session.onRequestTextEntry = { [weak self] displayID, request in
+            self?.overlayViews.first { $0.display.displayID == displayID }?.beginTextEntry(request)
         }
 
         // Only the active app may change the cursor, so the crosshair needs QuickSnip active.

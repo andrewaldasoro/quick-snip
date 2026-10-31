@@ -162,7 +162,7 @@ struct SelectionOverlayViewEditingTests {
         let session = CaptureSession(displays: [display])
         let view = SelectionOverlayView(display: display, session: session) { _ in }
         session.onChange = { view.sessionDidChange() }
-        session.onRequestTextEntry = { _, point in view.beginTextEntry(at: point) }
+        session.onRequestTextEntry = { _, request in view.beginTextEntry(request) }
         return (view, session)
     }
 
@@ -214,46 +214,45 @@ struct SelectionOverlayViewEditingTests {
         session.toggleTool(.text)
         TestSessions.drag(session, on: 1, from: CGPoint(x: 80, y: 90), to: CGPoint(x: 80, y: 90))  // a click
 
-        let field = try #require(view.textField)
-        #expect(field.frame.minX == 80 - TextEntry.fieldInset)
-        field.stringValue = "Note"
+        let editor = try #require(view.textEditor)
+        #expect(editor.frame.minX == 80)
+        editor.string = "Note"
         view.commitTextEntry()
 
-        #expect(view.textField == nil)
-        #expect(field.superview == nil)
+        #expect(view.textEditor == nil)
+        #expect(editor.superview == nil)
         #expect(session.document.annotations.map(\.kind) == [.text("Note", origin: CGPoint(x: 80, y: 90))])
     }
 
-    @Test func cancelledTextEntryAddsNothing() throws {
+    @Test func emptyTextEntryAddsNothing() throws {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
         session.toggleTool(.text)
         TestSessions.drag(session, on: 1, from: CGPoint(x: 80, y: 90), to: CGPoint(x: 80, y: 90))  // a click
 
-        try #require(view.textField).stringValue = "Draft"
-        view.cancelTextEntry()
+        view.commitTextEntry()
 
-        #expect(view.textField == nil)
+        #expect(view.textEditor == nil)
         #expect(session.document.annotations.isEmpty)
     }
 
     @Test func startingNewTextEntryCommitsThePrevious() throws {
         let (view, session) = makeView()
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
-        view.beginTextEntry(at: .line(at: CGPoint(x: 80, y: 90)))
-        try #require(view.textField).stringValue = "One"
-        view.beginTextEntry(at: .line(at: CGPoint(x: 80, y: 120)))
+        view.beginTextEntry(.new(at: .line(at: CGPoint(x: 80, y: 90)), style: .default))
+        try #require(view.textEditor).string = "One"
+        view.beginTextEntry(.new(at: .line(at: CGPoint(x: 80, y: 120)), style: .default))
 
         #expect(session.document.annotations.count == 1)
-        #expect(view.textField != nil)
+        #expect(view.textEditor != nil)
     }
 
-    @Test func shortcutsGoToTheTextFieldWhileTyping() throws {
+    @Test func shortcutsGoToTheTextWhileTyping() throws {
         var received: [OverlayCommand] = []
         let session = CaptureSession(displays: [display])
         let view = SelectionOverlayView(display: display, session: session) { received.append($0) }
         TestSessions.select(session, on: 1, CGRect(x: 50, y: 50, width: 200, height: 100))
-        view.beginTextEntry(at: .line(at: CGPoint(x: 80, y: 90)))
+        view.beginTextEntry(.new(at: .line(at: CGPoint(x: 80, y: 90)), style: .default))
 
         let copy = try #require(
             NSEvent.keyEvent(

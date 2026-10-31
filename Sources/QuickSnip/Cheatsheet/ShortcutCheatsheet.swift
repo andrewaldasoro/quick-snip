@@ -42,10 +42,15 @@ struct ShortcutCheatsheet: Equatable, Sendable {
             note: "Press the key again to move annotations."
         ),
         Section(title: "Colors", entries: entries(for: AnnotationColor.allCases.map(OverlayCommand.selectColor))),
-        // Typing happens in a text field, not through `OverlayKeyMap`.
+        // Typing happens in the text editor, not through `OverlayKeyMap`.
         Section(
             title: "Text",
-            entries: [Entry(action: "Place the text", keys: ["Return"]), Entry(action: "Discard the text", keys: ["Esc"])]
+            entries: [
+                Entry(action: "Start a new line", keys: ["Return"]),
+                Entry(action: "Finish typing", keys: ["Esc", "⌘Return"]),
+                Entry(action: "Edit placed text", keys: ["Double-click"]),
+            ],
+            note: "Drag with the Text tool for a box that wraps. Delete all of the text to remove it."
         ),
     ]
 

@@ -43,4 +43,14 @@ struct ShortcutCheatsheetTests {
         let actions = ShortcutCheatsheet(captureShortcut: nil).sections.flatMap(\.entries).map(\.action)
         #expect(Set(actions).count == actions.count)
     }
+
+    /// Regression: the cheatsheet still said Return places text and Esc discards it.
+    @Test func textKeysMatchTheEditor() throws {
+        let text = try #require(ShortcutCheatsheet.overlay.sections.first { $0.title == "Text" })
+        #expect(text.entries.first { $0.action == "Start a new line" }?.keys == ["Return"])
+        #expect(text.entries.first { $0.action == "Finish typing" }?.keys == ["Esc", "⌘Return"])
+        #expect(text.entries.contains { $0.action == "Edit placed text" })
+        #expect(TextEditorView.isFinishKey(keyCode: 36, modifiers: .command))
+        #expect(!TextEditorView.isFinishKey(keyCode: 36, modifiers: []))
+    }
 }

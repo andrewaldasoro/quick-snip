@@ -116,10 +116,124 @@ struct CaptureSessionAnnotationTests {
 
     // MARK: Text
 
+    // MARK: Editing text in place
+
+    private func placeText(_ session: CaptureSession, _ text: String = "Hello") -> Annotation? {
+        session.addText(text, at: .line(at: CGPoint(x: 50, y: 60)), on: 1)
+        return session.document.annotations.last
+    }
+
+    @Test func newTextRequestsCarryTheStyleAndNoAnnotation() {
+        let session = makeSession()
+        var requests: [TextEditRequest] = []
+        session.onRequestTextEntry = { requests.append($1) }
+        session.setFontSize(40)
+        session.toggleTool(.text)
+
+        TestSessions.drag(session, on: 1, from: CGPoint(x: 100, y: 100), to: CGPoint(x: 100, y: 100))
+
+        #expect(requests.first?.annotationID == nil)
+        #expect(requests.first?.text == "")
+        #expect(requests.first?.style.fontSize == 40)
+    }
+
+    @Test func doubleClickingTextEditsItAndHidesItMeanwhile() throws {
+        let session = makeSession()
+        var requests: [TextEditRequest] = []
+        session.onRequestTextEntry = { requests.append($1) }
+        let text = try #require(placeText(session))
+
+        let middle = CGPoint(x: text.bounds.midX, y: text.bounds.midY)  // clear of the corner handles
+        session.mouseDown(on: 1, at: middle, clickCount: 1)
+        session.mouseUp(on: 1, at: middle)
+        session.mouseDown(on: 1, at: middle, clickCount: 2)
+        session.mouseUp(on: 1, at: middle)
+
+        #expect(requests == [TextEditRequest.editing(text)])
+        #expect(requests.first?.text == "Hello")
+        #expect(session.editingTextID == text.id)
+        #expect(session.visibleAnnotations.isEmpty)  // the editor shows it instead
+        #expect(session.document.annotations.first?.kind == text.kind)  // not moved
+    }
+
+    @Test func doubleClickingAShapeDoesntEditIt() {
+        let session = makeSession()
+        var requests: [TextEditRequest] = []
+        session.onRequestTextEntry = { requests.append($1) }
+        drawRectangle(session, CGRect(x: 40, y: 40, width: 30, height: 20))
+
+        session.mouseDown(on: 1, at: CGPoint(x: 47, y: 40), clickCount: 2)
+        session.mouseUp(on: 1, at: CGPoint(x: 47, y: 40))
+
+        #expect(requests.isEmpty)
+    }
+
+    @Test func clickingTextWithTheTextToolEditsIt() throws {
+        let session = makeSession()
+        var requests: [TextEditRequest] = []
+        session.onRequestTextEntry = { requests.append($1) }
+        let text = try #require(placeText(session))
+        session.toggleTool(.text)
+
+        session.mouseDown(on: 1, at: CGPoint(x: 55, y: 65))
+        session.mouseUp(on: 1, at: CGPoint(x: 55, y: 65))
+
+        #expect(requests.map(\.annotationID) == [text.id])
+    }
+
+    @Test func finishingAnEditUpdatesTheTextInOneUndoStep() throws {
+        let session = makeSession()
+        let text = try #require(placeText(session))
+        let request = try #require(TextEditRequest.editing(text))
+        session.mouseDown(on: 1, at: CGPoint(x: 55, y: 65), clickCount: 2)
+
+        session.finishText("Hello\nWorld", for: request, on: 1)
+
+        #expect(session.document.annotations.first?.kind == .text("Hello\nWorld", origin: CGPoint(x: 50, y: 60)))
+        #expect(session.document.undoManager.undoActionName == "Edit Text")
+        #expect(session.editingTextID == nil)
+        #expect(session.selectedAnnotation?.id == text.id)
+        session.undo()
+        #expect(session.document.annotations.first?.kind == .text("Hello", origin: CGPoint(x: 50, y: 60)))
+    }
+
+    @Test func editingKeepsATextBoxsWidth() throws {
+        let session = makeSession()
+        session.addText("Boxed", at: TextPlacement(origin: CGPoint(x: 30, y: 40), boxWidth: 90), on: 1)
+        let boxed = try #require(session.document.annotations.first)
+        let request = try #require(TextEditRequest.editing(boxed))
+        #expect(request.placement == TextPlacement(origin: CGPoint(x: 30, y: 40), boxWidth: 90))
+
+        session.finishText("Still boxed", for: request, on: 1)
+
+        #expect(session.document.annotations.first?.kind == .text("Still boxed", origin: CGPoint(x: 30, y: 40), boxWidth: 90))
+    }
+
+    @Test func emptyingEditedTextRemovesIt() throws {
+        let session = makeSession()
+        let text = try #require(placeText(session))
+        let request = try #require(TextEditRequest.editing(text))
+
+        session.finishText("  \n ", for: request, on: 1)
+
+        #expect(session.document.annotations.isEmpty)
+        #expect(session.selectedAnnotation == nil)
+    }
+
+    @Test func finishingNewTextAddsIt() {
+        let session = makeSession()
+        session.finishText("New", for: .new(at: .line(at: CGPoint(x: 50, y: 60)), style: .default), on: 1)
+        #expect(session.document.annotations.first?.kind == .text("New", origin: CGPoint(x: 50, y: 60)))
+    }
+
+    @Test func onlyTextCanBeReopened() {
+        #expect(TextEditRequest.editing(Annotation(kind: .rectangle(.zero), style: .default)) == nil)
+    }
+
     @Test func textToolClickRequestsOneLineInsideSelection() {
         let session = makeSession()
         var requests: [(CGDirectDisplayID, TextPlacement)] = []
-        session.onRequestTextEntry = { requests.append(($0, $1)) }
+        session.onRequestTextEntry = { requests.append(($0, $1.placement)) }
         session.toggleTool(.text)
 
         TestSessions.drag(session, on: 1, from: CGPoint(x: 50, y: 60), to: CGPoint(x: 52, y: 61))
@@ -133,7 +247,7 @@ struct CaptureSessionAnnotationTests {
     @Test func textToolDragRequestsABoxClampedToTheSelection() {
         let session = makeSession()
         var requests: [TextPlacement] = []
-        session.onRequestTextEntry = { requests.append($1) }
+        session.onRequestTextEntry = { requests.append($1.placement) }
         session.toggleTool(.text)
 
         session.mouseDown(on: 1, at: CGPoint(x: 100, y: 60))

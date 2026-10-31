@@ -120,7 +120,7 @@ struct AnnotationFlowTests {
         await app.captureAndSelect()
 
         var requested: TextPlacement?
-        app.session.onRequestTextEntry = { _, placement in requested = placement }
+        app.session.onRequestTextEntry = { _, request in requested = request.placement }
         app.session.toggleTool(.text)
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 60, y: 60), to: CGPoint(x: 60, y: 60))  // a click
         let placement = try #require(requested)
@@ -145,7 +145,7 @@ struct AnnotationFlowTests {
         await app.captureAndSelect()
 
         var requested: TextPlacement?
-        app.session.onRequestTextEntry = { _, placement in requested = placement }
+        app.session.onRequestTextEntry = { _, request in requested = request.placement }
         app.session.toggleTool(.text)
         app.session.setAlignment(.center)
         TestSessions.drag(app.session, on: 1, from: CGPoint(x: 40, y: 40), to: CGPoint(x: 160, y: 50))

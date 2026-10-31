@@ -255,13 +255,13 @@ struct SelectionOverlayViewStyleTests {
 
     @Test func aDraggedBoxOpensAWrappingField() throws {
         let harness = make()
-        harness.session.onRequestTextEntry = { [view = harness.view] _, placement in view.beginTextEntry(at: placement) }
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
         harness.session.toggleTool(.text)
         TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 400, y: 160))
 
-        let field = try #require(harness.view.textField)
+        let editor = try #require(harness.view.textEditor)
         #expect(harness.view.textEntry?.isBox == true)
-        field.stringValue = "Boxed"
+        editor.string = "Boxed"
         harness.view.commitTextEntry()
 
         #expect(harness.session.document.annotations.first?.kind == .text("Boxed", origin: CGPoint(x: 200, y: 150), boxWidth: 200))
@@ -272,8 +272,8 @@ struct SelectionOverlayViewStyleTests {
     @Test func placingTextTurnsTheTextButtonOff() throws {
         let harness = make()
         harness.session.toggleTool(.text)
-        harness.view.beginTextEntry(at: .line(at: CGPoint(x: 200, y: 150)))
-        try #require(harness.view.textField).stringValue = "Done"
+        harness.view.beginTextEntry(.new(at: .line(at: CGPoint(x: 200, y: 150)), style: harness.session.style))
+        try #require(harness.view.textEditor).string = "Done"
 
         harness.view.commitTextEntry()
 
@@ -302,8 +302,62 @@ struct SelectionOverlayViewStyleTests {
         harness.session.setFont(.monospaced)
         harness.session.setFontSize(40)
 
-        harness.view.beginTextEntry(at: .line(at: CGPoint(x: 150, y: 150)))
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 150, y: 150), to: CGPoint(x: 150, y: 150))
 
-        #expect(try #require(harness.view.textField?.font) == TextFont.monospaced.font(size: 40))
+        #expect(try #require(harness.view.textEditor?.font) == TextFont.monospaced.font(size: 40))
+    }
+
+    /// The whole loop the user goes through: place text, type two lines, finish, double-click
+    /// it, change it, finish again.
+    @Test func doubleClickReopensTextToEditInPlace() throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 200, y: 150))
+        let editor = try #require(harness.view.textEditor as? TextEditorView)
+        editor.insertText("Line one", replacementRange: editor.selectedRange())
+        editor.insertNewline(nil)
+        editor.insertText("Line two", replacementRange: editor.selectedRange())
+        editor.cancelOperation(nil)  // Esc keeps it
+        #expect(harness.view.textEditor == nil)
+        #expect(harness.session.document.annotations.first?.kind == .text("Line one\nLine two", origin: CGPoint(x: 200, y: 150)))
+        #expect(harness.window.firstResponder === harness.view)
+
+        harness.session.mouseDown(on: 1, at: CGPoint(x: 210, y: 160), clickCount: 2)
+        harness.session.mouseUp(on: 1, at: CGPoint(x: 210, y: 160))
+        let reopened = try #require(harness.view.textEditor)
+        #expect(reopened.string == "Line one\nLine two")
+        #expect(reopened.selectedRange() == NSRange(location: 17, length: 0))  // caret at the end
+        #expect(harness.session.visibleAnnotations.isEmpty)
+
+        reopened.insertText("!", replacementRange: reopened.selectedRange())
+        harness.view.commitTextEntry()
+
+        #expect(harness.session.document.annotations.count == 1)
+        #expect(harness.session.document.annotations.first?.kind == .text("Line one\nLine two!", origin: CGPoint(x: 200, y: 150)))
+        #expect(harness.session.document.undoManager.undoActionName == "Edit Text")
+    }
+
+    /// Choosing a font while typing ends the typing, then styles the text just placed; focus
+    /// stays on the font list's search field.
+    @Test func openingAStyleListWhileTypingPlacesTheTextFirst() async throws {
+        let harness = make()
+        harness.session.onRequestTextEntry = { [view = harness.view] _, request in view.beginTextEntry(request) }
+        harness.session.toggleTool(.text)
+        TestSessions.drag(harness.session, on: 1, from: CGPoint(x: 200, y: 150), to: CGPoint(x: 200, y: 150))
+        let editor = try #require(harness.view.textEditor)
+        editor.insertText("Styled", replacementRange: editor.selectedRange())
+
+        harness.view.toggleDropdown(.font)
+        try await Task.sleep(for: .zero)
+
+        #expect(harness.view.textEditor == nil)
+        #expect(harness.session.document.annotations.count == 1)
+        let list = try #require(harness.view.dropdown?.panel)
+        #expect(harness.window.firstResponder === list.searchField?.currentEditor())
+        list.search("serif")
+        list.pickSelected()
+        #expect(harness.session.document.annotations.first?.style.font == .serif)
     }
 }
